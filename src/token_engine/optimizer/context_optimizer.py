@@ -87,6 +87,11 @@ class ContextOptimizer:
         cache_warnings: list[dict] = []
         task_query = self._config.task_query or self._infer_task_query(items)
 
+        for item in items:
+            if item.token_count <= 0:
+                item.token_count = self._tokenizer.count(item.content)
+        original_tokens = sum(i.token_count for i in items)
+
         # Strip read-tool line gutters early (token-savior / caveman)
         for item in items:
             if item.content_type in (ContentType.CODE, ContentType.TEXT):
@@ -167,13 +172,9 @@ class ContextOptimizer:
 
         output_parts = []
         for item in optimized_items:
-            if self._config.compact_output_headers:
-                output_parts.append(f"[{item.id}]\n{item.content}")
-            else:
-                output_parts.append(f"<!-- {item.id} -->\n{item.content}")
+            output_parts.append(self._format_output_item(item))
 
         output = "\n\n".join(output_parts)
-        original_tokens = sum(i.token_count for i in items)
         optimized_tokens = self._tokenizer.count(output)
         latency_ms = (time.perf_counter() - start) * 1000
 
@@ -371,6 +372,31 @@ class ContextOptimizer:
                 stub.token_count = self._tokenizer.count(stub.content)
                 selected.append(stub)
         return selected
+
+    def _format_output_item(self, item: ContentItem) -> str:
+        if self._config.compact_output_headers:
+            if self._use_inline_header(item.content, item):
+                return f"[{item.id}] {item.content}"
+            return f"[{item.id}]\n{item.content}"
+        if self._use_inline_header(item.content, item):
+            return f"<!-- {item.id} --> {item.content}"
+        return f"<!-- {item.id} -->\n{item.content}"
+
+    @staticmethod
+    def _use_inline_header(content: str, item: ContentItem) -> bool:
+        if item.metadata.get("knapsack_dropped") or item.metadata.get("grep_collapsed"):
+            return True
+        stripped = content.strip()
+        if not stripped:
+            return True
+        if stripped.startswith("[") and (
+            "same as msg" in stripped
+            or stripped.startswith("[CBM:")
+            or stripped.startswith("[dropped:")
+            or stripped.startswith("[grep:")
+        ):
+            return True
+        return "\n" not in stripped and len(stripped) <= 120
 
     @staticmethod
     def _infer_task_query(items: list[ContentItem]) -> str:

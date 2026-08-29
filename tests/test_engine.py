@@ -164,6 +164,19 @@ class TestCrossTurnDedup:
         assert stats["spans_folded"] >= 1
         assert "same as msg" in deduped[-1].text
 
+    def test_cross_turn_fixture_saves_tokens(self):
+        import json
+        data = json.loads((FIXTURES / "cross_turn_reread.json").read_text())
+        items = [
+            ContentItem(**{**item, "content_type": ContentType(item["content_type"])})
+            for item in data["items"]
+        ]
+        engine = TokenEngine()
+        result = engine.optimize_context(items)
+        assert result.stats.tokens_saved > 0
+        assert "[read_2]" in result.content
+        assert "same as msg" in result.content
+
 
 class TestToolSchemaCompaction:
     def test_compact_mcp_tools(self):
