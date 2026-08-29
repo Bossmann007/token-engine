@@ -17,27 +17,51 @@ Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
 
 ## Install on Windows (`C:\Users\enzo.bossmann`)
 
-**1. Publish to GitHub** (once, on your PC — the cloud agent cannot use your GitHub login):
+**Origin (`origin.cursor.com`) is private** — `git clone` pede login. No PowerShell nativo, use **GitHub** (mais simples) ou **WSL + Origin CLI**.
+
+### Caminho A — GitHub (recomendado no Windows)
 
 ```powershell
-# Install GitHub CLI if needed: winget install GitHub.cli
+winget install GitHub.cli
 gh auth login
 
-git clone https://origin.cursor.com/git/enzo-bossmann/tmp-b653fd97de4e8e5c.git C:\Users\enzo.bossmann\token-engine
-cd C:\Users\enzo.bossmann\token-engine
-.\scripts\publish-github.ps1
+# Cria o repo no GitHub e clona (ainda vazio — veja passo 2)
+gh repo create enzo-bossmann/token-engine --private --clone C:\Users\enzo.bossmann\token-engine
 ```
 
-Or in Cursor: open this agent run → **Create repo** → name it `token-engine` → then **Codebase → Sync from GitHub**.
+**2. Trazer o código do Origin** (uma vez) — no **Ubuntu/WSL**, não no PowerShell:
 
-**2. Install locally:**
+```bash
+curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+origin auth login
+origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
+```
+
+**3. Publicar no GitHub** (PowerShell):
+
+```powershell
+cd C:\Users\enzo.bossmann\token-engine
+git remote add github https://github.com/enzo-bossmann/token-engine.git
+git push -u github main
+.\scripts\install-windows.ps1
+```
+
+### Caminho B — só pelo Cursor (sem git no terminal)
+
+1. Nesta agent run → **Create repo** → nome `token-engine`
+2. **Codebase** → sync/mirror para GitHub (conta `enzombromanus@gmail.com`)
+3. No Cursor: **File → Clone from GitHub** → `enzo-bossmann/token-engine`
+4. Terminal integrado: `pip install -e ".[cursor,dev]"` e `token-engine cursor-setup`
+
+### Instalar deps (depois do clone)
 
 ```powershell
 cd C:\Users\enzo.bossmann\token-engine
 .\scripts\install-windows.ps1
 ```
 
-Then open `C:\Users\enzo.bossmann\token-engine` in Cursor and enable MCP servers in Settings.
+Abra a pasta no Cursor e ative MCP em Settings.
 
 ## Quick Start
 

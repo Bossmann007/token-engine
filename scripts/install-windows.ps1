@@ -7,7 +7,7 @@
 param(
     [string]$InstallDir = "C:\Users\enzo.bossmann\token-engine",
     [string]$RepoUrl = "https://github.com/enzo-bossmann/token-engine.git",
-    [string]$FallbackRepoUrl = "https://origin.cursor.com/git/enzo-bossmann/tmp-b653fd97de4e8e5c.git"
+    [switch]$SkipClone
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,13 +59,23 @@ if (Test-Path $InstallDir) {
     } else {
         throw "$InstallDir exists but is not a git repo. Remove it or pick another -InstallDir."
     }
+} elseif ($SkipClone) {
+    throw "-SkipClone set but $InstallDir does not exist. Clone the repo first."
 } else {
     New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir -Parent) | Out-Null
     try {
         Invoke-GitClone $RepoUrl $InstallDir
     } catch {
-        Write-Warning "GitHub clone failed ($($_.Exception.Message)). Trying Cursor Origin mirror..."
-        Invoke-GitClone $FallbackRepoUrl $InstallDir
+        throw @"
+GitHub clone failed: $($_.Exception.Message)
+
+Origin (origin.cursor.com) requires login — git clone in PowerShell will prompt forever.
+
+Fix (pick one):
+  A) gh auth login  then clone from GitHub (see README Install on Windows)
+  B) WSL: origin auth login  then  origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
+  C) Cursor UI: Create repo + sync to GitHub, then Clone from GitHub
+"@
     }
 }
 
