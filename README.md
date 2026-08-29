@@ -15,6 +15,30 @@ token-engine cursor-setup
 
 Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
 
+## Install on Windows (`C:\Users\enzo.bossmann`)
+
+**1. Publish to GitHub** (once, on your PC — the cloud agent cannot use your GitHub login):
+
+```powershell
+# Install GitHub CLI if needed: winget install GitHub.cli
+gh auth login
+
+git clone https://origin.cursor.com/git/enzo-bossmann/tmp-b653fd97de4e8e5c.git C:\Users\enzo.bossmann\token-engine
+cd C:\Users\enzo.bossmann\token-engine
+.\scripts\publish-github.ps1
+```
+
+Or in Cursor: open this agent run → **Create repo** → name it `token-engine` → then **Codebase → Sync from GitHub**.
+
+**2. Install locally:**
+
+```powershell
+cd C:\Users\enzo.bossmann\token-engine
+.\scripts\install-windows.ps1
+```
+
+Then open `C:\Users\enzo.bossmann\token-engine` in Cursor and enable MCP servers in Settings.
+
 ## Quick Start
 
 ```bash
