@@ -5,13 +5,13 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class QualityLevel(str, Enum):
-    MAXIMUM = "maximum"   # conservative compression
-    BALANCED = "balanced"   # moderate compression
-    ECONOMY = "economy"     # aggressive compression
+    MAXIMUM = "maximum"
+    BALANCED = "balanced"
+    ECONOMY = "economy"
 
 
 class CompressionLevel(str, Enum):
@@ -22,24 +22,27 @@ class CompressionLevel(str, Enum):
 
 
 class EngineConfig(BaseModel):
-    """Configuration for the Token Optimization Engine."""
+    """Configuration for the Token Optimization Engine.
+
+    Defaults match the full recommended stack (15+ tools analyzed).
+    """
 
     model_config = {"extra": "ignore"}
 
-    # Provider
-    provider: str = "openai"
-    model: str = "gpt-4o"
+    # Provider (Cursor / Anthropic default)
+    provider: str = "anthropic"
+    model: str = "claude-sonnet-4"
 
     # Token budget
-    max_tokens: int | None = None
-    target_tokens: int | None = None
+    max_tokens: int | None = 128_000
+    target_tokens: int | None = 32_000
     budget_usd: float | None = None
 
     # Quality / compression
     quality_level: QualityLevel = QualityLevel.BALANCED
     compression_level: CompressionLevel | None = None
 
-    # Feature flags
+    # Core compression (all on by default)
     enable_deduplication: bool = True
     enable_cross_turn_dedup: bool = True
     enable_cache: bool = True
@@ -48,16 +51,26 @@ class EngineConfig(BaseModel):
     enable_smart_crusher: bool = True
     enable_ccr: bool = True
     enable_tool_schema_compaction: bool = True
-    live_zone_mode: bool = False  # compress only, never drop messages (headroom-style)
-    fail_closed: bool = True  # pass-through if compression doesn't help
+    live_zone_mode: bool = True
+    fail_closed: bool = True
+
+    # Phase 2 features (on by default)
+    enable_log_template_mining: bool = True
+    enable_toon_encoding: bool = True
+    enable_read_delta: bool = True
+    enable_knapsack_selection: bool = True
+    enable_read_lifecycle: bool = True
+    enable_compression_feedback: bool = True
+    enable_cache_aligner: bool = True
+    enable_sandbox_execute: bool = True
 
     # Cache
     cache_ttl_seconds: int = 3600
     cache_max_entries: int = 10_000
 
-    # Task context (for relevance scoring)
+    # Task context
     task_query: str = ""
-    task_complexity: str = "medium"  # simple | medium | complex
+    task_complexity: str = "medium"
 
     # Tool schema compaction
     tool_desc_max_chars: int = 120
@@ -67,8 +80,8 @@ class EngineConfig(BaseModel):
     ccr_ttl_seconds: int = 1800
 
     # Cost estimation (USD per 1M tokens)
-    input_cost_per_million: float = 2.50
-    output_cost_per_million: float = 10.00
+    input_cost_per_million: float = 3.00
+    output_cost_per_million: float = 15.00
 
     def effective_compression_level(self) -> CompressionLevel:
         if self.compression_level is not None:
@@ -81,7 +94,6 @@ class EngineConfig(BaseModel):
         return mapping[self.quality_level]
 
     def compression_aggressiveness(self) -> float:
-        """0.0 = minimal, 1.0 = maximum compression."""
         levels = {
             CompressionLevel.NONE: 0.0,
             CompressionLevel.LIGHT: 0.25,
@@ -93,3 +105,7 @@ class EngineConfig(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EngineConfig:
         return cls.model_validate(data)
+
+    @classmethod
+    def default(cls) -> EngineConfig:
+        return cls()

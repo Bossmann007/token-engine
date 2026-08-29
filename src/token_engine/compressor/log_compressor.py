@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from token_engine.compressor.base import CompressResult, Compressor
+from token_engine.compressor.log_template import mine_log_templates
 from token_engine.core.types import ContentType
 
 ERROR_PATTERNS = re.compile(
@@ -33,10 +34,17 @@ class LogCompressor(Compressor):
     def content_types(self) -> set[ContentType]:
         return {ContentType.LOG, ContentType.TERMINAL}
 
-    def compress(self, text: str, *, aggressiveness: float = 0.5, query: str = "") -> CompressResult:
+    def compress(self, text: str, *, aggressiveness: float = 0.5, query: str = "", use_template_mining: bool = True) -> CompressResult:
         lines = text.splitlines()
         if len(lines) <= 5:
             return CompressResult(content=text, strategy=self.name, compressed=False)
+
+        # Template mining for repeated INFO/DEBUG lines (slimctx)
+        if use_template_mining and aggressiveness >= 0.3:
+            mined, collapsed = mine_log_templates(lines, min_count=max(3, int(5 * (1 - aggressiveness))))
+            if collapsed > 0:
+                lines = mined
+                text = "\n".join(lines)
 
         max_errors = max(5, int(20 * (1 - aggressiveness * 0.5)))
         max_warnings = max(3, int(10 * (1 - aggressiveness * 0.5)))

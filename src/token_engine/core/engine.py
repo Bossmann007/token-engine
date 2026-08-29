@@ -98,3 +98,11 @@ class TokenEngine:
     def from_config_file(cls, path: str | Path) -> TokenEngine:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls(EngineConfig.from_dict(data))
+
+    @classmethod
+    def default(cls) -> TokenEngine:
+        """Engine with full default stack enabled."""
+        defaults_path = Path(__file__).resolve().parents[3] / "config" / "token-engine.defaults.json"
+        if defaults_path.exists():
+            return cls.from_config_file(defaults_path)
+        return cls(EngineConfig.default())

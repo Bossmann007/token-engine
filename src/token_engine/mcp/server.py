@@ -1,4 +1,4 @@
-"""Token Engine MCP server — Caveman-compatible compression tools for Cursor."""
+"""Token Engine MCP server — full stack for Cursor."""
 
 from __future__ import annotations
 
@@ -8,15 +8,17 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from token_engine import EngineConfig, QualityLevel, TokenEngine
+from token_engine import QualityLevel, TokenEngine
 from token_engine.ccr.store import CCRStore
+from token_engine.core.config import EngineConfig
+from token_engine.sandbox.executor import execute_and_compress
 
 mcp = MCPServer(
     "token-engine",
     instructions=(
-        "Token optimization for AI agents. Use caveman_compress on large tool outputs "
-        "(logs, JSON, test results, file reads) before keeping them in context. "
-        "Use caveman_retrieve only when you need exact bytes from a recovery_handle."
+        "Full token optimization. Use codebase-memory for code exploration. "
+        "caveman_compress on large outputs. token_engine_sandbox for bulk analysis. "
+        "token_engine_compact_tools for MCP schema bloat."
     ),
 )
 
@@ -30,16 +32,11 @@ _session_stats = {
 
 
 def _engine(quality: str = "balanced", task_query: str = "") -> TokenEngine:
-    return TokenEngine(EngineConfig(
-        quality_level=QualityLevel(quality),
-        live_zone_mode=True,
-        enable_cross_turn_dedup=True,
-        enable_smart_crusher=True,
-        enable_ccr=False,  # MCP manages CCR store directly
-        provider="anthropic",
-        model="claude-sonnet-4",
-        task_query=task_query,
-    ))
+    config = EngineConfig.default()
+    config.quality_level = QualityLevel(quality)
+    config.task_query = task_query
+    config.enable_ccr = False
+    return TokenEngine(config)
 
 
 def _strip_optimizer_header(text: str) -> str:
@@ -64,10 +61,7 @@ def caveman_compress(
     quality: str = "balanced",
     task_query: str = "",
 ) -> dict[str, Any]:
-    """Compress large text (logs, JSON, tool output). Returns compressed, ratio, recovery_handle.
-
-    Fail-closed: unchanged input with ratio 0 if compression doesn't help.
-    """
+    """Compress large text. Fail-closed if no savings."""
     engine = _engine(quality, task_query)
     tokens_before = engine.count_tokens(input)
     result = engine.optimize(input, content_type=content_type)
@@ -102,7 +96,7 @@ def caveman_compress(
 
 @mcp.tool(name="caveman_retrieve")
 def caveman_retrieve(recovery_handle: str) -> dict[str, Any]:
-    """Recover original content from recovery_handle (ccr_* prefix)."""
+    """Recover original from recovery_handle."""
     raw = _normalize_handle(recovery_handle)
     key = raw.removeprefix("ccr_")
     content = _ccr.retrieve(key)
@@ -132,7 +126,7 @@ def caveman_stats() -> dict[str, Any]:
 
 @mcp.tool(name="token_engine_analyze")
 def token_engine_analyze(input: str) -> dict[str, Any]:
-    """Analyze token usage and compression recommendations."""
+    """Analyze tokens and get recommendations."""
     engine = _engine()
     result = engine.analyze(input)
     report = result.analysis
@@ -149,12 +143,24 @@ def token_engine_analyze(input: str) -> dict[str, Any]:
 
 @mcp.tool(name="token_engine_compact_tools")
 def token_engine_compact_tools(tools_json: str) -> dict[str, Any]:
-    """Compact MCP tool schemas to reduce token bloat."""
+    """Compact MCP tool schemas."""
     data = json.loads(tools_json)
     tools = data if isinstance(data, list) else data.get("tools", [])
     engine = _engine()
     compacted, stats = engine.compact_tool_schemas(tools)
     return {"tools": compacted, "stats": stats}
+
+
+@mcp.tool(name="token_engine_sandbox")
+def token_engine_sandbox(code: str, timeout: int = 30) -> dict[str, Any]:
+    """Run Python outside context; return compressed stdout only."""
+    result = execute_and_compress(code, timeout=timeout, config=EngineConfig.default())
+    return {
+        "compressed_output": result.compressed_stdout,
+        "returncode": result.returncode,
+        "tokens_saved": result.tokens_saved,
+        "stderr_preview": result.stderr[:500] if result.stderr else "",
+    }
 
 
 @mcp.tool(name="token_engine_compress")

@@ -1,0 +1,23 @@
+# MCP servers wrapped with mcp-compressor (Atlassian)
+# Use when a server exposes 50+ tools and causes token bloat.
+#
+# Example — wrap GitHub MCP:
+# {
+#   "mcpServers": {
+#     "github-compressed": {
+#       "command": "uvx",
+#       "args": [
+#         "mcp-compressor",
+#         "https://api.githubcopilot.com/mcp/",
+#         "--server-name", "github"
+#       ]
+#     }
+#   }
+# }
+#
+# Requires: pip install uv  OR  curl -LsSf https://astral.sh/uv/install.sh | sh
+#
+# Combine with token-engine:
+#   - codebase-memory: structural code queries (exploration)
+#   - token-engine: compress tool outputs + compact schemas
+#   - mcp-compressor: wrap bloated third-party MCP servers

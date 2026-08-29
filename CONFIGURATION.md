@@ -1,5 +1,32 @@
 # Configuration
 
+## Default stack (all features ON)
+
+Load `config/token-engine.defaults.json` or:
+
+```python
+from token_engine import TokenEngine
+engine = TokenEngine.default()  # full stack enabled
+```
+
+| Feature | Flag | Default | Source |
+|---------|------|---------|--------|
+| Live-zone (no drop) | `live_zone_mode` | **true** | headroom |
+| Cross-turn dedup | `enable_cross_turn_dedup` | true | headroom |
+| SmartCrusher | `enable_smart_crusher` | true | headroom |
+| CCR recovery | `enable_ccr` | true | headroom/caveman |
+| Log template mining | `enable_log_template_mining` | true | slimctx |
+| TOON encoding | `enable_toon_encoding` | true | caveman/kompact |
+| Read delta | `enable_read_delta` | true | TokenDamper |
+| Knapsack selection | `enable_knapsack_selection` | true | TokenDamper |
+| Stale read prune | `enable_read_lifecycle` | true | headroom |
+| Compression feedback | `enable_compression_feedback` | true | headroom |
+| Cache aligner | `enable_cache_aligner` | true | headroom |
+| Sandbox execute | `enable_sandbox_execute` | true | context-mode |
+| Tool schema compaction | `enable_tool_schema_compaction` | true | mcp-compressor |
+
+Provider default: `anthropic` / `claude-sonnet-4` (Cursor).
+
 ## EngineConfig
 
 ```python
