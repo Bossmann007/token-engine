@@ -9,13 +9,18 @@ from token_engine.core.types import ContentType
 from token_engine.compressor.context_helpers import filter_git_noise_paths
 from token_engine.compressor.detect import detect_content_type
 from token_engine.compressor.log_compressor import LogCompressor
+from token_engine.compressor import rtk_filters
 
 
 class ToolOutputCompressor(Compressor):
     """Routes tool output to specialized compactors."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, enable_rtk: bool = True) -> None:
         self._log = LogCompressor()
+        self._enable_rtk = enable_rtk
+
+    def _config_rtk_enabled(self) -> bool:
+        return self._enable_rtk
 
     @property
     def name(self) -> str:
@@ -38,6 +43,11 @@ class ToolOutputCompressor(Compressor):
             return self._compress_ls(text, aggressiveness)
         if tool_hint == "npm":
             return self._compress_npm(text, aggressiveness)
+
+        if self._config_rtk_enabled():
+            rtk_tool = rtk_filters.detect_rtk_tool(text)
+            if rtk_tool:
+                return rtk_filters.compress_rtk_tool(text, rtk_tool, aggressiveness=aggressiveness)
 
         # Fallback to log compressor for generic output
         detected = detect_content_type(text)

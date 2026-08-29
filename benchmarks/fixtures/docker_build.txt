@@ -1,0 +1,11 @@
+Step 1/8 : FROM node:20
+ ---> Using cache
+Step 2/8 : WORKDIR /app
+Step 3/8 : COPY package.json .
+Step 4/8 : RUN npm ci
+Step 5/8 : COPY . .
+Step 6/8 : RUN npm run build
+Step 7/8 : EXPOSE 3000
+Step 8/8 : CMD ["npm", "start"]
+Successfully built abc123def456
+Successfully tagged myapp:latest

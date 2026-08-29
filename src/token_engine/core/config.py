@@ -62,6 +62,12 @@ class EngineConfig(BaseModel):
     enable_compression_feedback: bool = True
     enable_cache_aligner: bool = True
     enable_sandbox_execute: bool = True
+    enable_rtk_filters: bool = True
+    enable_cbm_bridge: bool = True
+
+    # Codebase-memory bridge
+    cbm_min_lines: int = 35
+    cbm_min_chars: int = 800
 
     # Cache
     cache_ttl_seconds: int = 3600

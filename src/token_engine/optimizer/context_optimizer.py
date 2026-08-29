@@ -10,6 +10,7 @@ from token_engine.cache.cache import SmartCache
 from token_engine.cache.feedback import CompressionFeedback
 from token_engine.ccr.store import CCRStore
 from token_engine.compressor.base import Compressor
+from token_engine.compressor.cbm_bridge import collapse_large_reads_to_cbm
 from token_engine.compressor.code_compressor import CodeCompressor
 from token_engine.compressor.context_helpers import (
     collapse_duplicate_items,
@@ -74,7 +75,7 @@ class ContextOptimizer:
             LogCompressor(),
             CodeCompressor(),
             DiffCompressor(),
-            ToolOutputCompressor(),
+            ToolOutputCompressor(enable_rtk=self._config.enable_rtk_filters),
         ])
         return compressors
 
@@ -93,6 +94,17 @@ class ContextOptimizer:
                     item.content = stripped
                     item.token_count = self._tokenizer.count(item.content)
                     item.metadata["gutter_stripped"] = True
+
+        if self._config.enable_cbm_bridge:
+            collapse_large_reads_to_cbm(
+                items,
+                task_query=task_query,
+                min_lines=self._config.cbm_min_lines,
+                min_chars=self._config.cbm_min_chars,
+            )
+            for item in items:
+                if item.metadata.get("cbm_collapsed"):
+                    item.token_count = self._tokenizer.count(item.content)
 
         # Collapse grep hits covered by earlier reads (token-optimizer read-cache)
         collapse_grep_into_reads(items)

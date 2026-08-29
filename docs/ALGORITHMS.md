@@ -43,13 +43,14 @@
 | Tool schema compaction | headroom / mcp-compressor | 9 | 9 | 10 | **Yes** |
 | Live-zone-only (no drop) | headroom | 10 | 7 | 10 | **Yes** (config) |
 | Query-aware compression | SuperCompress / headroom | 9 | 9 | 8 | **Yes** |
-| Structural code graph | codebase-memory-mcp | 9 | 10 | 9 | Phase 2 (MCP bridge) |
+| Structural code graph | codebase-memory-mcp | 9 | 10 | 9 | **Yes** (CBM bridge) |
 | Compact tree output | codebase-memory-mcp | 8 | 8 | 10 | Pattern adopted |
 | Behavioral output reduction | ponytail | 7 | 6 | 10 | **No** (skill layer) |
 | Knapsack token budgeting | TokenDamper | 8 | 8 | 7 | Phase 2 |
 | Log template mining | slimctx | 8 | 9 | 9 | Phase 2 |
 | MCP on-demand schemas | mcp-compressor | 8 | 9 | 8 | Partial (compaction) |
 | Proxy intercept | kompact / headroom | 8 | 9 | 7 | **No** (library only) |
+| RTK bash filters (docker/cargo/k8s/pip/go) | rtk | 8 | 9 | 9 | **Yes** (v0.3) |
 | ML compression (Kompress) | headroom | 7 | 8 | 4 | **No** (defer) |
 | Embedding RAG | claude-context | 8 | 7 | 5 | Phase 2 optional |
 
