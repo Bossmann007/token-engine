@@ -8,6 +8,7 @@ from pathlib import Path
 
 import click
 
+from token_engine.cli import console
 from token_engine.core.config import CompressionLevel, EngineConfig, QualityLevel
 from token_engine.core.engine import TokenEngine
 from token_engine.core.types import ContentItem, ContentType
@@ -215,8 +216,10 @@ def serve_cmd(host: str, port: int) -> None:
     except ImportError as exc:
         raise click.ClickException("Install API deps: pip install 'token-engine[api]'") from exc
 
-    click.echo(f"Token Engine API http://{host}:{port}")
-    click.echo("Harness: POST /optimize-context")
+    console.banner(f"API · http://{host}:{port}")
+    console.ok("POST /optimize-context")
+    console.ok("POST /optimize")
+    click.echo()
     uvicorn.run("token_engine.api.server:app", host=host, port=port, log_level="info")
 
 
@@ -245,27 +248,32 @@ def benchmark_cmd(
             total_saved = sum(r.tokens_saved for r in results)
             ratio = total_saved / total_orig if total_orig else 0.0
             gap = (ref - ratio) * 100
-            click.echo(
-                f"\nTarget reference: {ref * 100:.0f}% | current {ratio * 100:.1f}% | gap {gap:+.1f}pp"
-            )
+            console.section("Targets")
+            console.stat_ratio("Total ref", ref, width=16)
+            console.stat_ratio("Total now", ratio, width=16)
+            click.secho(f"  {'Gap':<16} ", fg="bright_black", nl=False)
+            gap_fg = "green" if gap <= 0 else "yellow"
+            click.secho(f"{gap:+.1f} pp", fg=gap_fg, bold=True)
             session_ref = json.loads(baseline_path.read_text(encoding="utf-8")).get("reference_session_ratio")
             if session_ref is not None:
                 session_results = [r for r in results if r.category == "session"]
                 so = sum(r.original_tokens for r in session_results)
                 ss = sum(r.tokens_saved for r in session_results)
                 sr = ss / so if so else 0.0
-                click.echo(
-                    f"Session reference: {session_ref * 100:.0f}% | current {sr * 100:.1f}% | gap {(session_ref - sr) * 100:+.1f}pp"
-                )
+                console.stat_ratio("Session ref", session_ref, width=16)
+                console.stat_ratio("Session now", sr, width=16)
+                sg = (session_ref - sr) * 100
+                click.secho(f"  {'Session gap':<16} ", fg="bright_black", nl=False)
+                click.secho(f"{sg:+.1f} pp", fg="green" if sg <= 0 else "yellow", bold=True)
 
     if check_baseline:
         failures = runner.check_baseline(results, baseline_path)
         if failures:
-            click.echo("\nBaseline regressions:")
+            console.section("Baseline regressions")
             for msg in failures:
-                click.echo(f"  • {msg}")
+                console.fail(msg)
             raise SystemExit(1)
-        click.echo(f"\nBaseline OK ({baseline_path.name})")
+        console.ok(f"Baseline OK ({baseline_path.name})")
 
 
 @cli.command("stats")
@@ -277,9 +285,9 @@ def stats_cmd(path: str) -> None:
     tokens = engine.count_tokens(text)
     cost = engine.estimate_cost(tokens)
     click.echo(f"File: {path}")
-    click.echo(f"Tokens: {tokens:,}")
-    click.echo(f"Characters: {len(text):,}")
-    click.echo(f"Estimated input cost: ${cost:.4f}")
+    console.stat("Tokens", f"{tokens:,}")
+    console.stat("Characters", f"{len(text):,}")
+    console.stat("Est. cost", f"${cost:.4f}")
 
 
 def _stats_dict(result) -> dict:
@@ -300,11 +308,12 @@ def _print_stats(result) -> None:
     stats = result.stats
     if not stats:
         return
-    click.echo(f"Original:    {stats.original_tokens:>8,} tokens")
-    click.echo(f"Optimized:   {stats.optimized_tokens:>8,} tokens")
-    click.echo(f"Saved:       {stats.tokens_saved:>8,} tokens")
-    click.echo(f"Compression: {stats.compression_ratio * 100:>7.1f}%")
-    click.echo(f"Latency:     {stats.latency_ms:>7.1f} ms")
+    console.section("Compression")
+    console.stat_tokens("Original", stats.original_tokens)
+    console.stat_tokens("Optimized", stats.optimized_tokens)
+    console.stat_tokens("Saved", stats.tokens_saved)
+    console.stat_ratio("Ratio", stats.compression_ratio)
+    console.stat("Latency", f"{stats.latency_ms:.1f} ms")
 
 
 if __name__ == "__main__":

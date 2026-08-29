@@ -8,6 +8,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import click
+
+from token_engine.cli import console
 from token_engine.core.config import EngineConfig
 from token_engine.core.engine import TokenEngine
 from token_engine.core.types import ContentItem, ContentType
@@ -154,7 +157,7 @@ class BenchmarkRunner:
 
     def print_report(self, results: list[BenchmarkResult]) -> None:
         if not results:
-            print("No benchmark fixtures found.")
+            console.warn("No benchmark fixtures found.")
             return
 
         total_orig = sum(r.original_tokens for r in results)
@@ -162,52 +165,60 @@ class BenchmarkRunner:
         total_saved = total_orig - total_opt
         ratio = total_saved / total_orig if total_orig else 0
 
-        print("=" * 72)
-        print("TOKEN ENGINE BENCHMARK REPORT")
-        print("=" * 72)
-        print(f"{'Fixture':<25} {'Original':>10} {'Optimized':>10} {'Saved':>10} {'Ratio':>8} {'ms':>8}")
-        print("-" * 72)
+        console.banner("Benchmark Report")
+        header = f"{'Fixture':<22} {'Original':>9} {'Saved':>9} {'Ratio':>7}  Bar"
+        click.secho(header, bold=True)
+        click.secho("─" * 72, fg="bright_black")
 
         for r in results:
-            print(
-                f"{r.name:<25} {r.original_tokens:>10,} {r.optimized_tokens:>10,} "
-                f"{r.tokens_saved:>10,} {r.compression_ratio * 100:>7.1f}% {r.latency_ms:>7.1f}"
-            )
+            name = r.name[:22]
+            click.secho(f"{name:<22} {r.original_tokens:>9,} {r.tokens_saved:>9,} ", nl=False)
+            click.secho(f"{r.compression_ratio * 100:>6.1f}%", fg=console.ratio_fg(r.compression_ratio), nl=False)
+            click.secho(f"  {console.bar(r.compression_ratio, 16)}", fg=console.ratio_fg(r.compression_ratio))
             if r.quality_checks:
                 passed = sum(r.quality_checks.values())
                 total = len(r.quality_checks)
-                print(f"  Quality: {passed}/{total} checks passed ({r.quality_score * 100:.0f}%)")
+                q_pct = r.quality_score * 100
+                q_fg = "green" if q_pct >= 95 else "yellow"
+                click.secho(f"         quality {passed}/{total} ({q_pct:.0f}%)  {r.latency_ms:.0f}ms", fg=q_fg)
 
-        print("-" * 72)
-        print(f"{'TOTAL':<25} {total_orig:>10,} {total_opt:>10,} {total_saved:>10,} {ratio * 100:>7.1f}%")
-        print("=" * 72)
+        click.secho("─" * 72, fg="bright_black")
+        click.secho(f"{'TOTAL':<22} {total_orig:>9,} {total_saved:>9,} ", nl=False)
+        click.secho(f"{ratio * 100:>6.1f}%", fg=console.ratio_fg(ratio), bold=True, nl=False)
+        click.secho(f"  {console.bar(ratio, 16)}", fg=console.ratio_fg(ratio), bold=True)
+        click.echo()
 
         categories: dict[str, list[BenchmarkResult]] = {}
         for r in results:
             cat = getattr(r, "category", "other")
             categories.setdefault(cat, []).append(r)
         if len(categories) > 1:
-            print("\nBY CATEGORY:")
+            console.section("By category")
             for cat, cat_results in sorted(categories.items()):
                 co = sum(x.original_tokens for x in cat_results)
                 cs = sum(x.tokens_saved for x in cat_results)
                 cr = cs / co if co else 0
-                print(f"  {cat:<12} {cr * 100:5.1f}%  ({len(cat_results)} fixtures)")
+                click.secho(f"  {cat:<14} ", nl=False)
+                click.secho(f"{cr * 100:5.1f}%", fg=console.ratio_fg(cr), bold=True, nl=False)
+                click.secho(f"  ({len(cat_results)} fixtures)")
 
         heavy = sorted(results, key=lambda r: r.optimized_tokens, reverse=True)[:5]
         if heavy:
-            print("\nTOP TOKEN CONSUMERS (post-optimize):")
+            console.section("Top consumers (post-optimize)")
             for r in heavy:
-                print(f"  {r.name:<22} {r.optimized_tokens:>6,} tok  ({r.compression_ratio * 100:.1f}% saved)")
+                click.secho(f"  {r.name:<20} {r.optimized_tokens:>7,} tok  ", nl=False)
+                click.secho(f"{r.compression_ratio * 100:.0f}% saved", fg=console.ratio_fg(r.compression_ratio))
 
         weak = sorted(
             [r for r in results if r.compression_ratio < 0.35 and r.original_tokens > 80],
             key=lambda r: r.compression_ratio,
         )[:5]
         if weak:
-            print("\nRESIST COMPRESSION (ratio <35%, >80 tok):")
+            console.section("Resist compression (<35%)")
             for r in weak:
-                print(f"  {r.name:<22} {r.compression_ratio * 100:>5.1f}%  ({r.original_tokens}→{r.optimized_tokens} tok)")
+                click.secho(f"  {r.name:<20} ", nl=False)
+                click.secho(f"{r.compression_ratio * 100:5.1f}%", fg="yellow", nl=False)
+                click.secho(f"  ({r.original_tokens:,}→{r.optimized_tokens:,} tok)")
 
     def check_baseline(self, results: list[BenchmarkResult], baseline_path: Path) -> list[str]:
         """Return list of regression messages; empty if all thresholds met."""

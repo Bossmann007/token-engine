@@ -7,6 +7,8 @@ from pathlib import Path
 
 import click
 
+from token_engine.cli import console
+
 WORKSPACE = Path(__file__).resolve().parents[3]
 CURSOR_DIR = WORKSPACE / ".cursor"
 RULES_SRC = CURSOR_DIR / "rules"
@@ -15,28 +17,40 @@ MCP_TEMPLATE = CURSOR_DIR / "mcp.json"
 
 def run_cursor_setup(*, global_setup: bool = False) -> None:
     """Print Cursor setup instructions and verify project files."""
-    click.echo("Token Engine — Cursor Setup")
-    click.echo("=" * 40)
+    console.banner("Cursor Setup")
 
     rules = list(RULES_SRC.glob("*.mdc")) if RULES_SRC.exists() else []
-    click.echo(f"\n✓ Project rules ({len(rules)} files in .cursor/rules/):")
+    console.section("Project rules")
     for r in rules:
-        click.echo(f"  • {r.name}")
+        console.ok(r.name)
 
-    click.echo("\n✓ MCP server: .cursor/mcp.json")
-    click.echo("  Tools: caveman_compress, caveman_retrieve, caveman_stats")
+    console.section("MCP")
+    console.ok("token-engine — caveman_compress, token_engine_compress_session, caveman_stats")
+    console.ok("codebase-memory — search_graph, get_code_snippet")
 
-    click.echo("\n--- Enable in Cursor ---")
-    click.echo("1. Open this project in Cursor")
-    click.echo("2. Settings → MCP → enable 'token-engine'")
-    click.echo("3. Rules auto-apply: ponytail + caveman + token-engine + cbm-first")
-    click.echo("4. Harness API: token-engine serve  →  POST /optimize-context")
+    console.section("Enable in Cursor")
+    steps = [
+        "Open this project in Cursor",
+        "Settings → MCP → enable token-engine + codebase-memory",
+        "Rules: ponytail, caveman, token-engine, cbm-first",
+        "Global env: see ~/cursor-kit (Ultimate Cursor Environment)",
+        "API: token-engine serve → POST /optimize-context",
+    ]
+    for i, step in enumerate(steps, 1):
+        click.secho(f"  {i}. ", fg="cyan", nl=False)
+        click.echo(step)
 
     if global_setup and MCP_TEMPLATE.exists():
-        click.echo("\n--- Global MCP (optional) ---")
+        console.section("Global MCP template")
         mcp_config = json.loads(MCP_TEMPLATE.read_text())
         abs_src = str(WORKSPACE / "src")
         mcp_config["mcpServers"]["token-engine"]["env"]["PYTHONPATH"] = abs_src
         click.echo(json.dumps(mcp_config, indent=2))
 
-    click.echo("\n✓ Ponytail = minimal code | Caveman = terse output | MCP = compress tools")
+    click.echo()
+    click.secho("  ponytail ", fg="green", nl=False)
+    click.secho("= minimal code  ", nl=False)
+    click.secho("caveman ", fg="yellow", nl=False)
+    click.secho("= terse output  ", nl=False)
+    click.secho("MCP ", fg="cyan", nl=False)
+    click.secho("= compress tools")
