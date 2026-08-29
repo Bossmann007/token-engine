@@ -21,6 +21,11 @@ config = EngineConfig(
 
     # Features
     enable_deduplication=True,
+    enable_cross_turn_dedup=True,
+    enable_smart_crusher=True,
+    enable_ccr=True,
+    enable_tool_schema_compaction=True,
+    live_zone_mode=False,
     enable_cache=True,
     enable_code_aware=True,
     enable_tool_output_compression=True,

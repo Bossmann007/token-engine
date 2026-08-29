@@ -118,6 +118,6 @@ cost = engine.estimate_cost(input_tokens=tokens)
 | `token-engine optimize-context <json>` | Optimize JSON context |
 | `token-engine analyze <path>` | Analyze file or directory |
 | `token-engine benchmark` | Run benchmarks |
-| `token-engine stats <file>` | Token count and cost estimate |
+| `token-engine compact-tools <json>` | Compact MCP tool schemas |
 
 Options: `--quality maximum|balanced|economy`, `--max-tokens N`, `--target-tokens N`, `--task "query"`
