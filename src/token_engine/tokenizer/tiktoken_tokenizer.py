@@ -6,8 +6,8 @@ import tiktoken
 
 from token_engine.tokenizer.base import Tokenizer
 
-DEFAULT_ENCODING = "o200k_base"
-FALLBACK_ENCODING = "cl100k_base"
+DEFAULT_ENCODING = "o200k_base"  # current agent/chat APIs
+FALLBACK_ENCODING = "cl100k_base"  # cl100k parity when o200k unavailable
 
 
 def resolve_encoding(encoding: str) -> str:

@@ -17,9 +17,8 @@ Token Engine is a modular, encoding-agnostic library designed for integration in
 
 ### Tokenizer (`token_engine.tokenizer`)
 
-- **TiktokenTokenizer** — accurate BPE counting (default)
+- **TiktokenTokenizer** — accurate BPE counting via `encoding` (default `o200k_base`)
 - **CharEstimateTokenizer** — fast fallback (~3.3 chars/token)
-- Provider adapters map models to encodings (OpenAI `o200k_base`, Anthropic approximate via `cl100k_base`)
 
 ### Analyzer (`token_engine.analyzer`)
 

@@ -34,7 +34,7 @@ from token_engine import EngineConfig, QualityLevel
 
 config = EngineConfig(
     # Token counting (tiktoken encoding)
-    encoding="o200k_base",      # or cl100k_base for older BPE models
+    encoding="o200k_base",      # override only when you need cl100k parity
 
     # Token budget
     max_tokens=128000,          # hard ceiling
@@ -120,11 +120,12 @@ Enhance relevance scoring via item metadata:
 
 Token counting uses [tiktoken](https://github.com/openai/tiktoken) encodings directly — no provider or model coupling:
 
-| Encoding | Typical use |
+| Encoding | When to use |
 |----------|-------------|
-| `o200k_base` | Default; modern multimodal / reasoning models |
-| `cl100k_base` | GPT-4 era and many approximate counts |
-| `p50k_base` / `r50k_base` | Legacy OpenAI models |
+| `o200k_base` | **Default** — current chat, coding, and agent APIs (2025+) |
+| `cl100k_base` | Explicit cl100k parity: legacy benchmarks, pinned deployments, or rough cross-vendor estimates |
+
+`tiktoken` still ships `p50k_base` and `r50k_base` for historical GPT-3 counts; pass them via `encoding` only if a downstream system requires that exact vocabulary.
 
 For fast hooks without tiktoken overhead, use `create_tokenizer(use_estimate=True)`.
 
