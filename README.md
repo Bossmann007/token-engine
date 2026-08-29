@@ -17,9 +17,44 @@ Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
 
 ## Install on Windows (`C:\Users\enzo.bossmann`)
 
-**Origin (`origin.cursor.com`) is private** — `git clone` pede login. No PowerShell nativo, use **GitHub** (mais simples) ou **WSL + Origin CLI**.
+### Setup pelo Origin (recomendado se você quer usar o Cursor Origin)
 
-### Caminho A — GitHub (recomendado no Windows)
+O `git clone` direto no PowerShell **pede login** porque o Origin é privado. Use o script abaixo (WSL + Origin CLI):
+
+```powershell
+# 1) Se ainda não tem WSL:
+wsl --install
+# Reinicie o PC e abra "Ubuntu"
+
+# 2) Permite scripts locais (uma vez):
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+# 3) Clone este repo só para pegar os scripts (ou copie setup-origin.ps1 do agent)
+# Depois de ter a pasta, rode:
+cd C:\Users\enzo.bossmann\token-engine
+.\scripts\setup-origin.ps1
+```
+
+**Ou manualmente no Ubuntu/WSL:**
+
+```bash
+curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+origin auth login                    # browser → enzombromanus@gmail.com
+origin auth setup-git --global
+origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
+```
+
+Depois no PowerShell:
+
+```powershell
+cd C:\Users\enzo.bossmann\token-engine
+.\scripts\install-windows.ps1 -SkipClone
+```
+
+**Git pull/push no Origin:** use o terminal WSL dentro da pasta, ou `origin auth setup-git` já configurado no WSL.
+
+### Alternativa — GitHub
 
 ```powershell
 winget install GitHub.cli
