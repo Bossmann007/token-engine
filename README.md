@@ -7,14 +7,13 @@
 
 <p align="center">
   <a href="https://github.com/Bossmann007/token-engine">token-engine</a> ·
-  <a href="https://github.com/Bossmann007/cursor-kit">cursor-kit</a> ·
   <a href="docs/CURSOR-ENV.md">Cursor env</a>
 </p>
 
 ---
 
 Compress agent context while preserving errors, stack traces, and task-critical code.  
-Built for **Cursor** + MCP — pairs with [cursor-kit](https://github.com/Bossmann007/cursor-kit) for the full dev environment.
+Built for **Cursor** + MCP  
 
 ## Cursor Integration
 
