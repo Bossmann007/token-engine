@@ -29,10 +29,7 @@ wsl --install
 # 2) Permite scripts locais (uma vez):
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
-# 3) Clone este repo só para pegar os scripts (ou copie setup-origin.ps1 do agent)
-# Depois de ter a pasta, rode:
-cd C:\Users\enzo.bossmann\token-engine
-.\scripts\setup-origin.ps1
+# 3) Rode o setup (copie setup-origin.ps1 deste projeto ou use WSL manual abaixo)
 ```
 
 **Ou manualmente no Ubuntu/WSL:**
@@ -56,47 +53,7 @@ cd C:\Users\enzo.bossmann\token-engine
 
 ### Alternativa — GitHub
 
-```powershell
-winget install GitHub.cli
-gh auth login
-
-# Cria o repo no GitHub e clona (ainda vazio — veja passo 2)
-gh repo create enzo-bossmann/token-engine --private --clone C:\Users\enzo.bossmann\token-engine
-```
-
-**2. Trazer o código do Origin** (uma vez) — no **Ubuntu/WSL**, não no PowerShell:
-
-```bash
-curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-origin auth login
-origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
-```
-
-**3. Publicar no GitHub** (PowerShell):
-
-```powershell
-cd C:\Users\enzo.bossmann\token-engine
-git remote add github https://github.com/enzo-bossmann/token-engine.git
-git push -u github main
-.\scripts\install-windows.ps1
-```
-
-### Caminho B — só pelo Cursor (sem git no terminal)
-
-1. Nesta agent run → **Create repo** → nome `token-engine`
-2. **Codebase** → sync/mirror para GitHub (conta `enzombromanus@gmail.com`)
-3. No Cursor: **File → Clone from GitHub** → `enzo-bossmann/token-engine`
-4. Terminal integrado: `pip install -e ".[cursor,dev]"` e `token-engine cursor-setup`
-
-### Instalar deps (depois do clone)
-
-```powershell
-cd C:\Users\enzo.bossmann\token-engine
-.\scripts\install-windows.ps1
-```
-
-Abra a pasta no Cursor e ative MCP em Settings.
+`gh auth login` → Create repo no Cursor → sync para GitHub → clone no Cursor.
 
 ## Quick Start
 
