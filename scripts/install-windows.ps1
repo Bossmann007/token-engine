@@ -72,8 +72,8 @@ GitHub clone failed: $($_.Exception.Message)
 Origin (origin.cursor.com) requires login — git clone in PowerShell will prompt forever.
 
 Fix (pick one):
-  A) gh auth login  then clone from GitHub (see README Install on Windows)
-  B) WSL: origin auth login  then  origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
+  A) Native Origin: irm https://downloads.cursor.com/origin/install.ps1 | iex  then origin auth login
+  B) Run: .\scripts\setup-origin.ps1
   C) Cursor UI: Create repo + sync to GitHub, then Clone from GitHub
 "@
     }

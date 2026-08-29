@@ -1,44 +1,62 @@
-# Token Engine — Origin setup launcher for Windows
-# Instala Origin CLI no WSL, faz login e clona o repo para C:\Users\enzo.bossmann\token-engine
+# Token Engine — Origin setup for Windows (native, no WSL)
 #
-# Uso (PowerShell como Administrador NÃO é necessário):
+# Usage (PowerShell):
 #   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-#   iex (irm ...)   # ou salve este arquivo e rode: .\setup-origin.ps1
+#   irm https://downloads.cursor.com/origin/install.ps1 | iex   # if origin missing
+#   .\scripts\setup-origin.ps1
 
 param(
     [string]$InstallDir = "C:\Users\enzo.bossmann\token-engine",
-    [string]$OriginRepo = "enzo-bossmann/tmp-b653fd97de4e8e5c"
+    [string]$OriginRepo = "enzo-bossmann/tmp-b653fd97de4e8e5c",
+    [switch]$UseWsl
 )
 
 $ErrorActionPreference = "Stop"
 
-function Test-Wsl {
-    return [bool](Get-Command wsl -ErrorAction SilentlyContinue)
+function Test-Command($name) {
+    return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
 
-Write-Host "Token Engine — Origin setup"
-Write-Host "============================"
-Write-Host ""
+function Ensure-OriginCli {
+    if (Test-Command origin) {
+        Write-Host "Origin CLI: $(origin --version)"
+        return
+    }
 
-if (-not (Test-Wsl)) {
-    throw @"
-WSL não encontrado. O Origin CLI no Windows roda via WSL.
+    Write-Host "Instalando Origin CLI (Windows nativo)..."
+    irm https://downloads.cursor.com/origin/install.ps1 | iex
 
-Instale WSL (PowerShell como Admin):
-  wsl --install
+    $binDir = Join-Path $env:LOCALAPPDATA "cursor\bin"
+    if (Test-Path $binDir) {
+        $env:Path = "$binDir;$env:Path"
+    }
 
-Reinicie o PC, abra "Ubuntu" e rode este script de novo.
-Docs: https://cursor.com/docs/origin/cli
+    if (-not (Test-Command origin)) {
+        throw @"
+origin ainda nao esta no PATH. Feche e abra o PowerShell, ou rode:
+  `$env:Path = `"$binDir;`$env:Path`"
+  origin --version
 "@
+    }
+
+    Write-Host "Origin CLI: $(origin --version)"
 }
 
-$wslDistro = (wsl -l -q 2>$null | Select-Object -First 1)
-if (-not $wslDistro) {
-    throw "Nenhuma distro WSL configurada. Rode: wsl --install"
-}
+function Ensure-OriginAuth {
+    $status = origin auth status 2>&1 | Out-String
+    if ($status -match 'valid') {
+        Write-Host "Ja autenticado no Origin."
+        origin auth status
+        return
+    }
 
-Write-Host "WSL distro: $wslDistro"
-Write-Host ""
+    Write-Host ""
+    Write-Host ">>> Login Origin <<<"
+    Write-Host "Vai abrir o browser. Use: enzombromanus@gmail.com"
+    Write-Host ""
+    origin auth login
+    origin auth status
+}
 
 function ConvertTo-WslPath([string]$Path) {
     $normalized = $Path -replace '\\', '/'
@@ -48,48 +66,62 @@ function ConvertTo-WslPath([string]$Path) {
     return $normalized
 }
 
-# Convert Windows path -> WSL path
-$wslInstallDir = ConvertTo-WslPath $InstallDir
+function Invoke-WslSetup {
+    if (-not (Test-Command wsl)) {
+        throw "WSL nao encontrado. Use o setup nativo (sem -UseWsl) ou instale WSL."
+    }
+    $wslScript = Join-Path $PSScriptRoot "setup-origin-wsl.sh"
+    $wslInstallDir = ConvertTo-WslPath $InstallDir
+    if (Test-Path $wslScript) {
+        $wslScriptPath = ConvertTo-WslPath $wslScript
+        wsl bash $wslScriptPath $wslInstallDir $OriginRepo
+    } else {
+        throw "setup-origin-wsl.sh nao encontrado."
+    }
+}
 
-$scriptDir = $PSScriptRoot
-$wslScript = Join-Path $scriptDir "setup-origin-wsl.sh"
+Write-Host "Token Engine — Origin setup (Windows)"
+Write-Host "====================================="
+Write-Host "Destino: $InstallDir"
+Write-Host ""
 
-if (Test-Path $wslScript) {
-    $wslScriptPath = ConvertTo-WslPath $wslScript
-    Write-Host "Rodando setup no WSL..."
-    wsl bash "$wslScriptPath" "$wslInstallDir" "$OriginRepo"
+if ($UseWsl) {
+    Invoke-WslSetup
 } else {
-    Write-Host "Script WSL não encontrado localmente — usando bootstrap embutido..."
-    $bootstrap = @'
-set -euo pipefail
-INSTALL_DIR="$1"
-ORIGIN_REPO="$2"
-if ! command -v origin >/dev/null 2>&1; then
-  curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
-  export PATH="$HOME/.local/bin:$PATH"
-  grep -q '\.local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-fi
-export PATH="$HOME/.local/bin:$PATH"
-origin auth status 2>&1 | grep -qi valid || origin auth login
-origin auth setup-git --global
-mkdir -p "$(dirname "$INSTALL_DIR")"
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  cd "$INSTALL_DIR" && git pull --ff-only
-else
-  origin repo clone "$ORIGIN_REPO" "$INSTALL_DIR"
-fi
-cd "$INSTALL_DIR" && git log -1 --oneline
-'@
-    $bootstrap | wsl bash -s -- $wslInstallDir $OriginRepo
+    if (-not (Test-Command git)) {
+        throw "Git nao encontrado. Instale: winget install Git.Git"
+    }
+
+    Ensure-OriginCli
+    Ensure-OriginAuth
+
+    Write-Host ""
+    Write-Host "Configurando git credential helper..."
+    origin auth setup-git --global
+
+    if (Test-Path (Join-Path $InstallDir ".git")) {
+        Write-Host "Repo ja existe — atualizando..."
+        Push-Location $InstallDir
+        git pull --ff-only
+        Pop-Location
+    } else {
+        New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir -Parent) | Out-Null
+        Write-Host "Clonando $OriginRepo ..."
+        origin repo clone $OriginRepo $InstallDir
+    }
+
+    Push-Location $InstallDir
+    git log -1 --oneline
+    Pop-Location
 }
 
 Write-Host ""
-Write-Host "Instalando Python + token-engine (PowerShell)..."
-$installScript = Join-Path $scriptDir "install-windows.ps1"
+$installScript = Join-Path $PSScriptRoot "install-windows.ps1"
 if (Test-Path $installScript) {
+    Write-Host "Instalando Python + token-engine..."
     & $installScript -InstallDir $InstallDir -SkipClone
 } else {
-    Write-Host "Rode depois:"
+    Write-Host "Depois rode:"
     Write-Host "  cd $InstallDir"
     Write-Host "  pip install -e `".[cursor,dev]`""
     Write-Host "  token-engine cursor-setup"
@@ -97,4 +129,3 @@ if (Test-Path $installScript) {
 
 Write-Host ""
 Write-Host "Abra no Cursor: $InstallDir"
-Write-Host "Settings -> MCP -> ative token-engine e codebase-memory"

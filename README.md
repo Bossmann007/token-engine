@@ -17,39 +17,48 @@ Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
 
 ## Install on Windows (`C:\Users\enzo.bossmann`)
 
-### Setup pelo Origin (recomendado se você quer usar o Cursor Origin)
+### Setup pelo Origin (Windows nativo — **sem WSL**)
 
-O `git clone` direto no PowerShell **pede login** porque o Origin é privado. Use o script abaixo (WSL + Origin CLI):
+O Origin tem instalador nativo para PowerShell. Cole no **PowerShell** (não precisa de Ubuntu/WSL):
 
 ```powershell
-# 1) Se ainda não tem WSL:
-wsl --install
-# Reinicie o PC e abra "Ubuntu"
+# 1) Instalar Origin CLI
+irm https://downloads.cursor.com/origin/install.ps1 | iex
 
-# 2) Permite scripts locais (uma vez):
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-
-# 3) Rode o setup (copie setup-origin.ps1 deste projeto ou use WSL manual abaixo)
-```
-
-**Ou manualmente no Ubuntu/WSL:**
-
-```bash
-curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-origin auth login                    # browser → enzombromanus@gmail.com
+# Feche e reabra o PowerShell, depois:
+origin --version
+origin auth login
 origin auth setup-git --global
-origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c /mnt/c/Users/enzo.bossmann/token-engine
-```
 
-Depois no PowerShell:
+# 2) Clonar o projeto
+origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c C:\Users\enzo.bossmann\token-engine
 
-```powershell
+# 3) Instalar deps
 cd C:\Users\enzo.bossmann\token-engine
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 .\scripts\install-windows.ps1 -SkipClone
 ```
 
-**Git pull/push no Origin:** use o terminal WSL dentro da pasta, ou `origin auth setup-git` já configurado no WSL.
+Ou tudo de uma vez (depois que `origin` estiver no PATH):
+
+```powershell
+.\scripts\setup-origin.ps1
+```
+
+**Login:** `origin auth login` abre o browser → use **enzombromanus@gmail.com**.
+
+**WSL com problema?** Ignore o WSL — use os comandos acima. Só use `.\scripts\setup-origin.ps1 -UseWsl` se preferir Ubuntu.
+
+### WSL não abre? (opcional — só se quiser consertar depois)
+
+```powershell
+# PowerShell como Administrador:
+wsl --shutdown
+wsl --update --web-download
+wsl --install -d Ubuntu
+```
+
+Se falhar: feche Docker Desktop, reinicie o PC, ou `winget uninstall Microsoft.WSL` + `winget install Microsoft.WSL` e reinicie.
 
 ### Alternativa — GitHub
 
