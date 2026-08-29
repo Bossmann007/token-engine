@@ -174,7 +174,10 @@ class ContextOptimizer:
 
         output_parts = []
         for item in optimized_items:
-            output_parts.append(f"<!-- {item.id} -->\n{item.content}")
+            if self._config.compact_output_headers:
+                output_parts.append(f"[{item.id}]\n{item.content}")
+            else:
+                output_parts.append(f"<!-- {item.id} -->\n{item.content}")
 
         output = "\n\n".join(output_parts)
         original_tokens = sum(i.token_count for i in items)
@@ -263,9 +266,18 @@ class ContextOptimizer:
         token_saved = original_token_count - new_tokens
         ccr_handle = None
 
-        if self._ccr and strategy != "passthrough" and token_saved > 50 and chars_saved > 200:
-            ccr_handle = self._ccr.store(item.content, metadata={"strategy": strategy, "item_id": item.id})
-            content = f"{content}\n\n{self._ccr.marker(ccr_handle, chars_dropped=chars_saved)}"
+        if (
+            self._ccr
+            and strategy != "passthrough"
+            and chars_saved >= self._config.ccr_min_chars_saved
+            and token_saved >= self._config.ccr_min_token_saved
+        ):
+            handle = self._ccr.store(item.content, metadata={"strategy": strategy, "item_id": item.id})
+            marker = self._ccr.marker(handle, chars_dropped=chars_saved)
+            marked = f"{content}\n{marker}"
+            if self._tokenizer.count(marked) < original_token_count:
+                content = marked
+                ccr_handle = handle
 
         new_tokens = self._tokenizer.count(content)
         if self._config.fail_closed and new_tokens >= original_token_count:

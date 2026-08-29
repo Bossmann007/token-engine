@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from token_engine.compressor.base import CompressResult, Compressor
+from token_engine.compressor.query_slice import slice_code_by_query
 from token_engine.core.types import ContentType
 
 # Line number gutter: "   123| code" or "  123: code"
@@ -43,6 +44,16 @@ class CodeCompressor(Compressor):
                 stripped_lines.append(line)
 
         code = "\n".join(stripped_lines)
+
+        if query:
+            sliced, did_slice = slice_code_by_query(code, query)
+            if did_slice:
+                return CompressResult(
+                    content=sliced,
+                    strategy=f"{self.name}:query-slice",
+                    lossless=False,
+                    compressed=True,
+                )
 
         if aggressiveness < 0.3 or len(code) < 500:
             if had_gutter and code != text:

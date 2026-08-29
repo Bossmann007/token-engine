@@ -69,6 +69,11 @@ class EngineConfig(BaseModel):
     cbm_min_lines: int = 35
     cbm_min_chars: int = 800
 
+    # CCR — only attach recovery marker when net savings remain
+    ccr_min_token_saved: int = 100
+    ccr_min_chars_saved: int = 400
+    compact_output_headers: bool = True
+
     # Cache
     cache_ttl_seconds: int = 3600
     cache_max_entries: int = 10_000
