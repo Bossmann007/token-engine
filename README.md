@@ -4,6 +4,17 @@
 
 Token Engine analyzes, ranks, and compresses LLM context while preserving critical information: errors, stack traces, code structure, API contracts, and task-relevant content.
 
+## Cursor Integration
+
+**Ponytail + Caveman + Token Engine** ready for Cursor. See [CURSOR.md](CURSOR.md).
+
+```bash
+pip install -e ".[cursor,dev]"
+token-engine cursor-setup
+```
+
+Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
+
 ## Quick Start
 
 ```bash
