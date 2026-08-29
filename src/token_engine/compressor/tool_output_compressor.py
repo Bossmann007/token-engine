@@ -41,8 +41,8 @@ class ToolOutputCompressor(Compressor):
             return self._compress_grep(text, aggressiveness)
         if tool_hint == "ls":
             return self._compress_ls(text, aggressiveness)
-        if tool_hint == "npm":
-            return self._compress_npm(text, aggressiveness)
+        if tool_hint in ("npm", "jest"):
+            return rtk_filters.compress_rtk_tool(text, tool_hint, aggressiveness=aggressiveness)
 
         if self._config_rtk_enabled():
             rtk_tool = rtk_filters.detect_rtk_tool(text)
@@ -59,6 +59,8 @@ class ToolOutputCompressor(Compressor):
     def _detect_tool(self, text: str) -> str | None:
         if re.search(r"^(On branch |Changes not staged|Untracked files|diff --git)", text, re.MULTILINE):
             return "git"
+        if re.search(r"(Test Suites:|^FAIL \S|^\s*● )", text, re.MULTILINE):
+            return "jest"
         if re.search(r"(=+ FAILURES =+|FAILED|passed|pytest|PASSED|ERROR collecting)", text, re.MULTILINE):
             return "pytest"
         if re.search(r"^(npm WARN|npm ERR|added \d+ packages|up to date)", text, re.MULTILINE):
@@ -197,22 +199,3 @@ class ToolOutputCompressor(Compressor):
             return CompressResult(content=text, strategy="ls", compressed=False)
         out = "\n".join(lines[:max_entries]) + f"\n... {len(lines) - max_entries} more entries"
         return CompressResult(content=out, strategy="ls", lossless=False, compressed=True)
-
-    def _compress_npm(self, text: str, aggressiveness: float) -> CompressResult:
-        lines = text.splitlines()
-        errors = [l for l in lines if "ERR" in l or "error" in l.lower()]
-        warnings = [l for l in lines if "WARN" in l]
-        summary = [l for l in lines if re.search(r"added \d+|up to date|audited", l)]
-
-        parts = summary[:3]
-        if errors:
-            parts.append(f"errors: {len(errors)}")
-            parts.extend(errors[:10])
-        if warnings and aggressiveness < 0.7:
-            parts.append(f"warnings: {len(warnings)}")
-            parts.extend(warnings[:5])
-
-        out = "\n".join(parts) if parts else text
-        if len(out) >= len(text):
-            return CompressResult(content=text, strategy="npm", compressed=False)
-        return CompressResult(content=out, strategy="npm", lossless=False, compressed=True)

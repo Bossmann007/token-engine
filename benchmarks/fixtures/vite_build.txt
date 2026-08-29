@@ -1,0 +1,15 @@
+vite v5.4.0 building for production...
+transforming...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-a1b2c3.js     120.4 kB │ gzip: 40.2 kB
+dist/assets/index-d4e5f6.css     12.8 kB │ gzip:  3.1 kB
+dist/assets/chunk-0.js          120.0 kB │ gzip: 40.0 kB
+dist/assets/chunk-1.js          121.0 kB │ gzip: 41.0 kB
+dist/assets/chunk-2.js          122.0 kB │ gzip: 42.0 kB
+dist/assets/chunk-3.js          123.0 kB │ gzip: 43.0 kB
+dist/assets/chunk-4.js          124.0 kB │ gzip: 44.0 kB
+dist/assets/chunk-5.js          125.0 kB │ gzip: 45.0 kB
+dist/assets/chunk-6.js          126.0 kB │ gzip: 46.0 kB
+dist/assets/chunk-7.js          127.0 kB │ gzip: 47.0 kB
+dist/assets/chunk-8.js          128.0 kB │ gzip: 48.0 kB
+✓ built in 8.42s

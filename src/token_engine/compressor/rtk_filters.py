@@ -1,4 +1,4 @@
-"""RTK-inspired bash/tool output filters (docker, cargo, kubectl, pip, go, make, curl, webpack, gradle, journalctl, terraform)."""
+"""RTK-inspired bash/tool output filters (docker, cargo, npm, jest, pnpm, vite, webpack, gradle, journalctl, terraform)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ DETECTORS: list[tuple[str, re.Pattern[str]]] = [
     ("kubectl", re.compile(r"(^NAME\s+READY|^NAMESPACE\s+|^kubectl |^\S+\s+\d+/\d+\s+Running)", re.M)),
     ("pip", re.compile(r"(^(Collecting|Installing|Successfully installed|Requirement already satisfied) )", re.M)),
     ("yarn", re.compile(r"^(?:yarn (?:install|add|run)|warning |error )", re.M)),
-    ("go", re.compile(r"(^=== RUN |^--- FAIL:|^PASS$|^ok\s+\S+\s+[\d.]+s|^FAIL\s+\S+)", re.M)),
+    ("jest", re.compile(r"(Test Suites:|^Tests:\s+\d+|^FAIL \S+\.|^\s*● )", re.M)),
+    ("go", re.compile(r"(^=== RUN |^--- FAIL:|^PASS$|^ok\s+\S+\s+[\d.]+s|^FAIL\s+\S+\s+\[)", re.M)),
     ("make", re.compile(r"(^make(\[\d+\])?: (Entering|Leaving) directory|^make(\[\d+\])?: \*\*\* )", re.M)),
     ("curl", re.compile(r"(^[*<>] (Connected|HTTP|GET |POST )|^HTTP/\d\.\d \d{3})", re.M)),
     ("dotnet", re.compile(r"(^Build (FAILED|succeeded)|^    \d+ Error\(s\)|^MSBUILD : error)", re.M)),
@@ -22,6 +23,9 @@ DETECTORS: list[tuple[str, re.Pattern[str]]] = [
     ("gradle", re.compile(r"(^> Task |BUILD SUCCESSFUL|BUILD FAILED|^FAILURE: Build failed)", re.M)),
     ("journalctl", re.compile(r"(^-- Logs begin|^-- Boot \d+|^[A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \S+ \S+\[\d+\]:)", re.M)),
     ("terraform", re.compile(r"(^Terraform |^Plan: \d+ to |^No changes\.|^Error:|^\s*[~+-]\s+\S+.*= |^  # module\.)", re.M)),
+    ("pnpm", re.compile(r"(^Progress: resolved|^Packages: \+|^Done in [\d.]+s|^WARN\s+.*deprecated)", re.M)),
+    ("vite", re.compile(r"(^vite v\d|built in [\d.]+s|dist/.*\.(js|css)|error during build)", re.M)),
+    ("npm", re.compile(r"(^npm warn |^npm error |added \d+ packages|audited \d+ packages|up to date)", re.M | re.I)),
 ]
 
 
@@ -62,7 +66,11 @@ def _keep_errors_and_summary(lines: list[str], *, error_re: re.Pattern[str], sum
 def _compress_docker(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
     errors = [l for l in lines if re.search(r"(error|failed|denied|Cannot |no such|Error response)", l, re.I)]
-    steps = [l for l in lines if l.strip().startswith("Step ") or " --->" in l]
+    steps = [
+        l for l in lines
+        if (l.strip().startswith("Step ") or " --->" in l)
+        and not re.search(r"---> (Using cache|Running in [a-f0-9]+)\s*$", l.strip())
+    ]
     summary = [l for l in lines if re.search(r"Successfully (built|tagged|pushed)|exited with code", l, re.I)]
 
     max_steps = max(3, int(8 * (1 - aggressiveness)))
@@ -330,6 +338,98 @@ def _compress_terraform(text: str, aggressiveness: float) -> CompressResult:
     return _finish(text, "\n".join(parts), "terraform")
 
 
+def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"npm ERR|npm error", l, re.I)]
+    warnings = [l for l in lines if re.search(r"npm WARN", l, re.I)]
+    summary = [
+        l for l in lines
+        if re.search(r"added \d+ packages|up to date|audited \d+ packages|found \d+ vulnerabilities", l, re.I)
+    ]
+    installing = [l for l in lines if re.search(r"^npm http fetch|^reify:|^idealTree:", l)]
+
+    max_lines = max(3, int(10 * (1 - aggressiveness)))
+    parts: list[str] = summary[:3]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:12])
+    if warnings and aggressiveness < 0.7:
+        parts.append(f"=== WARNINGS ({len(warnings)}) ===")
+        parts.extend(l.strip() for l in warnings[:max_lines])
+    elif installing:
+        parts.append(f"=== INSTALL ({len(installing)}, last {max_lines}) ===")
+        parts.extend(l.strip() for l in installing[-max_lines:])
+
+    return _finish(text, "\n".join(parts), "npm")
+
+
+def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    summary = [l for l in lines if re.search(r"Test Suites:|^Tests:|^Snapshots:|^Time:", l)]
+    fails = [l for l in lines if l.startswith("FAIL ") or l.strip().startswith("●")]
+    errors = [l for l in lines if re.search(r"Expected|Received|at Object\.|^\s+at ", l)]
+    passes = [l for l in lines if l.startswith("PASS ")]
+
+    max_pass = max(1, int(3 * (1 - aggressiveness)))
+    parts: list[str] = summary[:5]
+    if fails:
+        parts.append(f"=== FAIL ({len(fails)}) ===")
+        parts.extend(l.strip() for l in fails[:10])
+    if errors:
+        parts.extend(l.strip() for l in errors[:12])
+    if passes:
+        if fails or len(passes) > max_pass:
+            parts.append(f"PASS: {len(passes)} suites omitted")
+        else:
+            parts.extend(l.strip() for l in passes[:max_pass])
+
+    return _finish(text, "\n".join(parts), "jest")
+
+
+def _compress_pnpm(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"ERR_| ELIFECYCLE |ERROR", l)]
+    warnings = [l for l in lines if re.search(r"WARN|deprecated", l, re.I)]
+    summary = [l for l in lines if re.search(r"Done in [\d.]+s|^Packages:", l)]
+    progress = [l for l in lines if l.startswith("Progress:") and l not in summary]
+
+    max_lines = max(3, int(8 * (1 - aggressiveness)))
+    parts: list[str] = summary[:3]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:12])
+    if warnings and aggressiveness < 0.7:
+        parts.append(f"=== WARNINGS ({len(warnings)}) ===")
+        parts.extend(l.strip() for l in warnings[:max_lines])
+    elif progress:
+        parts.append(f"=== PROGRESS ({len(progress)}, last {max_lines}) ===")
+        parts.extend(l.strip() for l in progress[-max_lines:])
+
+    return _finish(text, "\n".join(parts), "pnpm")
+
+
+def _compress_vite(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"error during build|✘ \[ERROR\]|Failed to compile", l, re.I)]
+    summary = [l for l in lines if re.search(r"^vite v|built in [\d.]+s|✓ built in", l, re.I)]
+    assets = [l for l in lines if re.search(r"dist/.*\.(js|css|html)", l, re.I)]
+    warnings = [l for l in lines if "warning" in l.lower()]
+
+    max_assets = max(3, int(8 * (1 - aggressiveness)))
+    parts: list[str] = summary[:3]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:12])
+    if assets:
+        parts.append(f"=== OUTPUT ({len(assets)}, last {max_assets}) ===")
+        parts.extend(l.strip() for l in assets[-max_assets:])
+    if warnings and aggressiveness < 0.7:
+        parts.append(f"warnings: {len(warnings)}")
+        parts.extend(l.strip() for l in warnings[:5])
+
+    return _finish(text, "\n".join(parts), "vite")
+
+
 _COMPRESSORS = {
     "docker": _compress_docker,
     "cargo": _compress_cargo,
@@ -344,4 +444,8 @@ _COMPRESSORS = {
     "gradle": _compress_gradle,
     "journalctl": _compress_journalctl,
     "terraform": _compress_terraform,
+    "npm": _compress_npm,
+    "jest": _compress_jest,
+    "pnpm": _compress_pnpm,
+    "vite": _compress_vite,
 }

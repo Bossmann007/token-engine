@@ -1,0 +1,10 @@
+PASS src/components/Button.test.tsx
+PASS src/components/Modal.test.tsx
+PASS src/hooks/useAuth.test.ts
+FAIL src/auth/login.test.ts
+  ● login › rejects special characters in password
+    Expected: 200
+    Received: 500
+      at Object.<anonymous> (src/auth/login.test.ts:42:5)
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 18 passed, 19 total

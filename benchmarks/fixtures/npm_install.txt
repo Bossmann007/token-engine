@@ -1,0 +1,11 @@
+npm http fetch GET 200 https://registry.npmjs.org/react/-/react-18.2.0.tgz
+npm http fetch GET 200 https://registry.npmjs.org/react-dom/-/react-dom-18.2.0.tgz
+npm WARN deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm WARN deprecated inflight@1.0.6: This module is not supported
+reify:lodash: timing reifyNode:node_modules/lodash Completed in 120ms
+reify:axios: timing reifyNode:node_modules/axios Completed in 95ms
+idealTree: timing idealTree Completed in 450ms
+npm http fetch GET 200 https://registry.npmjs.org/typescript/-/typescript-5.3.0.tgz
+npm http fetch GET 200 https://registry.npmjs.org/vite/-/vite-5.0.0.tgz
+added 847 packages, and audited 848 packages in 23s
+found 3 vulnerabilities (1 moderate, 2 high)

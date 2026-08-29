@@ -122,11 +122,29 @@ def analyze_cmd(path: str, as_json: bool) -> None:
 @cli.command("compact-tools")
 @click.argument("path", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path())
-def compact_tools_cmd(path: str, output: str | None) -> None:
+@click.option("--mode", type=click.Choice(["compact", "lazy"]), default="compact", show_default=True)
+@click.option("--level", type=click.Choice(["low", "medium", "high", "max"]), default="medium", show_default=True)
+def compact_tools_cmd(path: str, output: str | None, mode: str, level: str) -> None:
     """Compact MCP tool schema definitions to reduce token bloat."""
     engine = TokenEngine()
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     tools = data if isinstance(data, list) else data.get("tools", [])
+
+    if mode == "lazy":
+        catalog, session_id, stats = engine.lazy_tool_catalog(tools, level=level)
+        if output:
+            Path(output).write_text(catalog, encoding="utf-8")
+        click.echo(f"Mode: lazy ({level})")
+        click.echo(f"Session: {session_id}")
+        click.echo(f"Tools: {stats.get('tools', len(tools))}")
+        click.echo(f"Catalog:   {stats.get('catalog_chars', len(catalog)):,} chars")
+        click.echo(f"Full JSON: {stats.get('full_chars', 0):,} chars")
+        click.echo(f"Saved:     {stats.get('saved_vs_full', 0):,} chars ({stats.get('ratio_vs_full', 0) * 100:.1f}%)")
+        if not output:
+            click.echo("\n--- Catalog ---\n")
+            click.echo(catalog)
+        return
+
     compacted, stats = engine.compact_tool_schemas(tools)
 
     if output:

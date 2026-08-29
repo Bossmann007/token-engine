@@ -151,6 +151,82 @@ class TestRTKExtendedFilters:
         assert result.strategy == "rtk:gradle"
 
 
+NPM_LOG = "\n".join([
+    "npm http fetch GET 200 https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+    "npm WARN deprecated inflight@1.0.6: This module is not supported",
+] * 15 + [
+    "added 847 packages, and audited 848 packages in 23s",
+    "found 3 vulnerabilities (1 moderate, 2 high)",
+])
+
+JEST_LOG = "\n".join([
+    "PASS src/utils/format.test.ts",
+    "PASS src/utils/date.test.ts",
+] * 8 + [
+    "FAIL src/auth/login.test.ts",
+    "  ● login › rejects special characters in password",
+    "    Expected: 200",
+    "    Received: 500",
+    "      at Object.<anonymous> (src/auth/login.test.ts:42:5)",
+    "Test Suites: 1 failed, 8 passed, 9 total",
+    "Tests:       1 failed, 64 passed, 65 total",
+])
+
+PNPM_LOG = "\n".join([
+    "Progress: resolved 1, reused 0, downloaded 0, added 0",
+] * 20 + [
+    "Packages: +512",
+    "Done in 14.2s",
+])
+
+VITE_LOG = "\n".join([
+    "vite v5.4.0 building for production...",
+    "transforming...",
+] + [
+    f"dist/assets/chunk-{i}.js  120.{i} kB │ gzip: 40.{i} kB"
+    for i in range(15)
+] + [
+    "✓ built in 8.42s",
+])
+
+
+class TestRTKNodeFilters:
+    def test_npm(self):
+        assert rtk_filters.detect_rtk_tool(NPM_LOG) == "npm"
+        result = rtk_filters.compress_rtk_tool(NPM_LOG, "npm", aggressiveness=0.5)
+        assert result.compressed
+        assert "added 847 packages" in result.content
+
+    def test_jest(self):
+        assert rtk_filters.detect_rtk_tool(JEST_LOG) == "jest"
+        result = rtk_filters.compress_rtk_tool(JEST_LOG, "jest", aggressiveness=0.5)
+        assert result.compressed
+        assert "Test Suites:" in result.content
+        assert "FAIL src/auth" in result.content
+        assert "Expected:" in result.content
+        assert "suites omitted" in result.content
+
+    def test_pnpm(self):
+        assert rtk_filters.detect_rtk_tool(PNPM_LOG) == "pnpm"
+        result = rtk_filters.compress_rtk_tool(PNPM_LOG, "pnpm", aggressiveness=0.5)
+        assert result.compressed
+        assert "Done in 14.2s" in result.content
+
+    def test_vite(self):
+        assert rtk_filters.detect_rtk_tool(VITE_LOG) == "vite"
+        result = rtk_filters.compress_rtk_tool(VITE_LOG, "vite", aggressiveness=0.5)
+        assert result.compressed
+        assert "built in 8.42s" in result.content
+
+    def test_jest_via_tool_output(self):
+        from token_engine.compressor.tool_output_compressor import ToolOutputCompressor
+
+        comp = ToolOutputCompressor(enable_rtk=True)
+        result = comp.compress(JEST_LOG, aggressiveness=0.5)
+        assert result.compressed
+        assert result.strategy == "rtk:jest"
+
+
 class TestCBMBridge:
     def test_collapses_large_exploratory_read(self):
         items = [
