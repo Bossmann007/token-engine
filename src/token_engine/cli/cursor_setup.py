@@ -29,7 +29,8 @@ def run_cursor_setup(*, global_setup: bool = False) -> None:
     click.echo("\n--- Enable in Cursor ---")
     click.echo("1. Open this project in Cursor")
     click.echo("2. Settings → MCP → enable 'token-engine'")
-    click.echo("3. Rules auto-apply: ponytail + caveman + token-engine")
+    click.echo("3. Rules auto-apply: ponytail + caveman + token-engine + cbm-first")
+    click.echo("4. Harness API: token-engine serve  →  POST /optimize-context")
 
     if global_setup and MCP_TEMPLATE.exists():
         click.echo("\n--- Global MCP (optional) ---")

@@ -79,6 +79,17 @@ class TokenEngine:
     def compact_tool_schemas(self, tools: list[dict]) -> tuple[list[dict], dict]:
         return self._optimizer.compact_tool_schemas(tools)
 
+    def lazy_tool_catalog(
+        self,
+        tools: list[dict],
+        *,
+        level: str | None = None,
+    ) -> tuple[str, str, dict]:
+        return self._optimizer.lazy_tool_catalog(tools, level=level)
+
+    def get_lazy_tool_schema(self, session_id: str, tool_name: str) -> tuple[dict | None, dict]:
+        return self._optimizer.get_lazy_tool_schema(session_id, tool_name)
+
     def retrieve_compressed(self, handle: str) -> str | None:
         return self._optimizer.retrieve_ccr(handle)
 

@@ -58,6 +58,9 @@ class EngineConfig(BaseModel):
     enable_toon_encoding: bool = True
     enable_read_delta: bool = True
     enable_knapsack_selection: bool = True
+    enable_hybrid_knapsack: bool = True
+    knapsack_budget_threshold: float = 0.8
+    hybrid_knapsack_target_ratio: float = 0.95
     enable_read_lifecycle: bool = True
     enable_compression_feedback: bool = True
     enable_cache_aligner: bool = True
@@ -85,6 +88,8 @@ class EngineConfig(BaseModel):
     # Tool schema compaction
     tool_desc_max_chars: int = 120
     tool_desc_strip_semantic: bool = True
+    lazy_schema_default_level: str = "medium"
+    lazy_schema_min_tools: int = 20
 
     # CCR
     ccr_ttl_seconds: int = 1800

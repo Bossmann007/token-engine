@@ -107,8 +107,22 @@ def analyze(req: AnalyzeRequest) -> dict[str, Any]:
 def compact_tools_endpoint(req: dict) -> dict[str, Any]:
     engine = TokenEngine()
     tools = req.get("tools", [])
+    mode = req.get("mode", "compact")
+    level = req.get("level", "medium")
+    if mode == "lazy":
+        catalog, session_id, stats = engine.lazy_tool_catalog(tools, level=level)
+        return {"catalog": catalog, "session_id": session_id, "stats": stats}
     compacted, stats = engine.compact_tool_schemas(tools)
     return {"tools": compacted, "stats": stats}
+
+
+@app.post("/get-tool-schema")
+def get_tool_schema_endpoint(req: dict) -> dict[str, Any]:
+    engine = TokenEngine()
+    schema, stats = engine.get_lazy_tool_schema(req.get("session_id", ""), req.get("tool_name", ""))
+    if schema is None:
+        return {"error": stats.get("error", "not found"), "stats": stats}
+    return {"schema": schema, "stats": stats}
 
 
 @app.post("/retrieve-ccr")
@@ -136,6 +150,8 @@ def _result_to_dict(result) -> dict[str, Any]:
             "strategy": result.stats.strategy,
             "latency_ms": result.stats.latency_ms,
         }
+    if result.metadata:
+        out["metadata"] = result.metadata
     if result.analysis:
         out["analysis"] = {
             "total_tokens": result.analysis.total_tokens,

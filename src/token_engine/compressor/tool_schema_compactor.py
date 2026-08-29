@@ -6,6 +6,8 @@ import copy
 import hashlib
 import json
 import re
+import secrets
+from enum import Enum
 from typing import Any
 
 TOOL_SCHEMA_DROP_KEYS = frozenset({
@@ -20,6 +22,45 @@ _SEMANTIC_PARAM_NAMES = frozenset({
     "id", "number", "count", "url", "path", "file", "filename", "branch",
     "tag", "sha", "commit", "ref", "key", "token",
 })
+
+
+class LazySchemaLevel(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    MAX = "max"
+
+
+class LazyToolRegistry:
+    """Session store for on-demand schema lookup (mcp-compressor pattern)."""
+
+    _sessions: dict[str, list[dict[str, Any]]] = {}
+    _max_sessions = 100
+
+    @classmethod
+    def store(cls, tools: list[dict[str, Any]]) -> str:
+        session_id = secrets.token_hex(8)
+        cls._sessions[session_id] = copy.deepcopy(tools)
+        while len(cls._sessions) > cls._max_sessions:
+            cls._sessions.pop(next(iter(cls._sessions)))
+        return session_id
+
+    @classmethod
+    def get(cls, session_id: str, tool_name: str) -> dict[str, Any] | None:
+        tools = cls._sessions.get(session_id)
+        if not tools:
+            return None
+        for tool in tools:
+            if tool.get("name") == tool_name:
+                return copy.deepcopy(tool)
+        return None
+
+    @classmethod
+    def list_names(cls, session_id: str) -> list[str]:
+        tools = cls._sessions.get(session_id)
+        if not tools:
+            return []
+        return [str(t.get("name", "")) for t in tools if t.get("name")]
 
 
 class ToolSchemaCompactor:
@@ -56,6 +97,112 @@ class ToolSchemaCompactor:
             "cache_hit": False,
         }
         return compacted, stats
+
+    def lazy_catalog(
+        self,
+        tools: list[dict[str, Any]],
+        *,
+        level: str | LazySchemaLevel = LazySchemaLevel.MEDIUM,
+    ) -> tuple[str, str, dict[str, Any]]:
+        """Build compact tool listing; store full schemas for on-demand lookup."""
+        if isinstance(level, str):
+            level = LazySchemaLevel(level.lower())
+
+        session_id = LazyToolRegistry.store(tools)
+        lines = [self._format_lazy_line(t, level) for t in tools]
+        if level == LazySchemaLevel.MAX:
+            header = (
+                f"# {len(tools)} tools — call token_engine_get_tool_schema"
+                f"(session_id, tool_name) for full schema"
+            )
+            catalog = header + "\n" + "\n".join(lines)
+        else:
+            catalog = "\n".join(lines)
+
+        full_chars = len(json.dumps(tools))
+        compacted, _ = self.compact_tools(tools)
+        compact_chars = len(json.dumps(compacted))
+        catalog_chars = len(catalog)
+        stats = {
+            "mode": "lazy",
+            "level": level.value,
+            "tools": len(tools),
+            "session_id": session_id,
+            "catalog_chars": catalog_chars,
+            "full_chars": full_chars,
+            "compact_chars": compact_chars,
+            "saved_vs_full": max(0, full_chars - catalog_chars),
+            "saved_vs_compact": max(0, compact_chars - catalog_chars),
+            "ratio_vs_full": 1 - catalog_chars / full_chars if full_chars else 0,
+        }
+        return catalog, session_id, stats
+
+    def get_lazy_schema(
+        self,
+        session_id: str,
+        tool_name: str,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+        """Return full compacted schema for one tool from a lazy session."""
+        raw = LazyToolRegistry.get(session_id, tool_name)
+        if raw is None:
+            return None, {"error": "unknown session or tool", "session_id": session_id, "tool_name": tool_name}
+
+        compacted = self._compact_tool(raw)
+        args = self._format_args(raw)
+        name = raw.get("name", tool_name)
+        sig = f"{name}({args})" if args else name
+        desc = raw.get("description", "")
+        stats = {
+            "session_id": session_id,
+            "tool_name": tool_name,
+            "signature": sig,
+            "original_chars": len(json.dumps(raw)),
+            "schema_chars": len(json.dumps(compacted)),
+        }
+        return {
+            "name": name,
+            "signature": sig,
+            "description": desc,
+            "inputSchema": compacted.get("inputSchema") or compacted.get("parameters"),
+            "tool": compacted,
+        }, stats
+
+    def _format_lazy_line(self, tool: dict[str, Any], level: LazySchemaLevel) -> str:
+        name = tool.get("name", "unknown")
+        args = self._format_args(tool)
+        sig = f"{name}({args})" if args else name
+
+        desc = (tool.get("description") or "").strip()
+        if level == LazySchemaLevel.MAX:
+            return name
+        if level == LazySchemaLevel.HIGH:
+            return sig
+        if level == LazySchemaLevel.MEDIUM:
+            first = self._first_sentence(desc)
+            return f"{sig}: {first}" if first else sig
+        return f"{sig}: {desc}" if desc else sig
+
+    @staticmethod
+    def _format_args(tool: dict[str, Any]) -> str:
+        schema = tool.get("inputSchema") or tool.get("parameters") or {}
+        if not isinstance(schema, dict):
+            return ""
+        props = schema.get("properties")
+        if not isinstance(props, dict):
+            return ""
+        required = set(schema.get("required") or [])
+        ordered = [n for n in props if n in required] + [n for n in props if n not in required]
+        return ", ".join(ordered)
+
+    @staticmethod
+    def _first_sentence(desc: str) -> str:
+        if not desc:
+            return ""
+        match = re.match(r"^(.+?[.!?])(?:\s|$)", desc)
+        if match:
+            return match.group(1).strip()
+        first_line = desc.splitlines()[0].strip()
+        return first_line[:120] + ("..." if len(first_line) > 120 else "")
 
     def _compact_tool(self, tool: dict[str, Any]) -> dict[str, Any]:
         if "description" in tool and self._desc_max > 0:

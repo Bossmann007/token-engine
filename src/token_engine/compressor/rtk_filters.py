@@ -1,4 +1,4 @@
-"""RTK-inspired bash/tool output filters (docker, cargo, kubectl, pip, go, make, curl)."""
+"""RTK-inspired bash/tool output filters (docker, cargo, kubectl, pip, go, make, curl, webpack, gradle, journalctl, terraform)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,10 @@ DETECTORS: list[tuple[str, re.Pattern[str]]] = [
     ("make", re.compile(r"(^make(\[\d+\])?: (Entering|Leaving) directory|^make(\[\d+\])?: \*\*\* )", re.M)),
     ("curl", re.compile(r"(^[*<>] (Connected|HTTP|GET |POST )|^HTTP/\d\.\d \d{3})", re.M)),
     ("dotnet", re.compile(r"(^Build (FAILED|succeeded)|^    \d+ Error\(s\)|^MSBUILD : error)", re.M)),
+    ("webpack", re.compile(r"(webpack compiled|ERROR in |Module not found|asset \S+ \d+ (?:KiB|MiB|bytes)|WARNING in )", re.M)),
+    ("gradle", re.compile(r"(^> Task |BUILD SUCCESSFUL|BUILD FAILED|^FAILURE: Build failed)", re.M)),
+    ("journalctl", re.compile(r"(^-- Logs begin|^-- Boot \d+|^[A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \S+ \S+\[\d+\]:)", re.M)),
+    ("terraform", re.compile(r"(^Terraform |^Plan: \d+ to |^No changes\.|^Error:|^\s*[~+-]\s+\S+.*= |^  # module\.)", re.M)),
 ]
 
 
@@ -240,6 +244,92 @@ def _compress_dotnet(text: str, aggressiveness: float) -> CompressResult:
     return _finish(text, "\n".join(parts), "dotnet")
 
 
+def _compress_webpack(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"ERROR in |Module not found|Failed to compile", l, re.I)]
+    warnings = [l for l in lines if re.search(r"WARNING in |warning ", l, re.I)]
+    assets = [l for l in lines if re.search(r"asset \S+ \d+ (?:KiB|MiB|bytes)", l, re.I)]
+    summary = [l for l in lines if re.search(r"webpack compiled|compiled (?:with|successfully)", l, re.I)]
+
+    max_assets = max(3, int(8 * (1 - aggressiveness)))
+    parts: list[str] = summary[:3]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:15])
+    if warnings and aggressiveness < 0.7:
+        parts.append(f"=== WARNINGS ({len(warnings)}) ===")
+        parts.extend(l.strip() for l in warnings[:8])
+    if assets:
+        parts.append(f"=== ASSETS ({len(assets)}, last {max_assets}) ===")
+        parts.extend(l.strip() for l in assets[-max_assets:])
+
+    return _finish(text, "\n".join(parts), "webpack")
+
+
+def _compress_gradle(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"FAILURE:|BUILD FAILED|Execution failed|error:", l, re.I)]
+    summary = [l for l in lines if re.search(r"BUILD SUCCESSFUL|BUILD FAILED|\d+ actionable task", l, re.I)]
+    tasks = [l for l in lines if l.strip().startswith("> Task ")]
+
+    max_tasks = max(4, int(12 * (1 - aggressiveness)))
+    parts: list[str] = summary[:3]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:15])
+    elif tasks:
+        parts.append(f"=== TASKS ({len(tasks)}, last {max_tasks}) ===")
+        parts.extend(l.strip() for l in tasks[-max_tasks:])
+
+    return _finish(text, "\n".join(parts), "gradle")
+
+
+def _compress_journalctl(text: str, aggressiveness: float) -> CompressResult:
+    lines = [l.rstrip() for l in text.splitlines() if l.strip()]
+    errors = [
+        l for l in lines
+        if re.search(r"\b(error|failed|fatal|panic|segfault|denied|unavailable)\b", l, re.I)
+        and not l.startswith("--")
+    ]
+    markers = [l for l in lines if l.startswith("--")]
+    entries = [l for l in lines if l not in markers and l not in errors]
+
+    max_entries = max(5, int(25 * (1 - aggressiveness)))
+    parts: list[str] = markers[:2]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(errors[:max_entries])
+    parts.append(f"=== RECENT ({min(max_entries, len(entries))} of {len(entries)}) ===")
+    parts.extend(entries[-max_entries:])
+    if len(entries) > max_entries:
+        parts.append(f"... {len(entries) - max_entries} older log lines omitted")
+
+    return _finish(text, "\n".join(parts), "journalctl")
+
+
+def _compress_terraform(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"^Error:|Error: |^\s*│ Error:", l)]
+    plan_summary = [l for l in lines if re.search(r"^Plan: \d+ to |^No changes\.|^Apply complete!|^Destroy complete!", l)]
+    changes = [
+        l for l in lines
+        if re.search(r"^\s*[~+-]\s+\S+|^  # module\.|^  \+ resource|^  ~ resource|^  - resource", l)
+    ]
+
+    max_changes = max(5, int(20 * (1 - aggressiveness)))
+    parts: list[str] = plan_summary[:5]
+    if errors:
+        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.extend(l.strip() for l in errors[:15])
+    if changes:
+        parts.append(f"=== CHANGES ({len(changes)}, first {max_changes}) ===")
+        parts.extend(l.rstrip() for l in changes[:max_changes])
+        if len(changes) > max_changes:
+            parts.append(f"... {len(changes) - max_changes} more resource changes")
+
+    return _finish(text, "\n".join(parts), "terraform")
+
+
 _COMPRESSORS = {
     "docker": _compress_docker,
     "cargo": _compress_cargo,
@@ -250,4 +340,8 @@ _COMPRESSORS = {
     "make": _compress_make,
     "curl": _compress_curl,
     "dotnet": _compress_dotnet,
+    "webpack": _compress_webpack,
+    "gradle": _compress_gradle,
+    "journalctl": _compress_journalctl,
+    "terraform": _compress_terraform,
 }

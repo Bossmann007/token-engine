@@ -1,0 +1,64 @@
+{
+  "name": "hybrid_knapsack_session",
+  "config": {
+    "target_tokens": 350,
+    "knapsack_budget_threshold": 0.8,
+    "hybrid_knapsack_target_ratio": 0.95,
+    "enable_cache": false,
+    "enable_ccr": false
+  },
+  "items": [
+    {
+      "id": "system",
+      "content": "You are a senior software engineer. Follow project conventions.",
+      "content_type": "message",
+      "source": "system",
+      "metadata": {"content_role": "instruction"}
+    },
+    {
+      "id": "user_task",
+      "content": "Fix the authentication bug in src/auth/login.py. The login endpoint returns 500 when password contains special characters.",
+      "content_type": "message",
+      "source": "user"
+    },
+    {
+      "id": "file_auth",
+      "content": "import hashlib\nimport re\nfrom typing import Optional\n\nclass AuthService:\n    def __init__(self, db):\n        self.db = db\n\n    def login(self, email: str, password: str) -> Optional[dict]:\n        user = self.db.find_user(email)\n        if not user:\n            return None\n        hashed = hashlib.sha256(password.encode()).hexdigest()\n        if user.password_hash != hashed:\n            return None\n        return {\"id\": user.id, \"email\": user.email}\n\n    def validate_password(self, password: str) -> bool:\n        return len(password) >= 8 and re.match(r'^[a-zA-Z0-9]+$', password)\n",
+      "content_type": "code",
+      "source": "src/auth/login.py"
+    },
+    {
+      "id": "pytest_output",
+      "content": "tests/test_auth.py::test_special_chars FAILED\nE   AssertionError: Expected 200, got 500\nE   Special chars in password: p@ssw0rd!\n\n1 failed, 42 passed",
+      "content_type": "log",
+      "source": "pytest",
+      "metadata": {"is_error": true}
+    },
+    {
+      "id": "filler_log_1",
+      "content": "INFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\nINFO: routine heartbeat ok\n",
+      "content_type": "log",
+      "source": "app.log"
+    },
+    {
+      "id": "filler_log_2",
+      "content": "DEBUG: cache miss on key alpha\nDEBUG: cache miss on key beta\nDEBUG: cache miss on key gamma\nDEBUG: cache miss on key delta\nDEBUG: cache miss on key epsilon\nDEBUG: cache miss on key zeta\nDEBUG: cache miss on key eta\nDEBUG: cache miss on key theta\nDEBUG: cache miss on key iota\nDEBUG: cache miss on key kappa\nDEBUG: cache miss on key lambda\nDEBUG: cache miss on key mu\nDEBUG: cache miss on key nu\nDEBUG: cache miss on key xi\nDEBUG: cache miss on key omicron\nDEBUG: cache miss on key pi\nDEBUG: cache miss on key rho\nDEBUG: cache miss on key sigma\nDEBUG: cache miss on key tau\nDEBUG: cache miss on key upsilon\n",
+      "content_type": "log",
+      "source": "debug.log"
+    },
+    {
+      "id": "old_notes",
+      "content": "TODO: remove this legacy auth module. The old version is no longer used since v2 migration.",
+      "content_type": "text",
+      "source": "notes.md"
+    },
+    {
+      "id": "filler_notes",
+      "content": "Meeting notes from last sprint: discussed UI polish, refactored sidebar nav, updated dependency versions, ran load tests, reviewed PR queue, scheduled retro, planned Q3 roadmap items, noted flaky CI on macOS runners, filed ticket for docs refresh, agreed on naming convention for API v3 endpoints, captured action items for onboarding doc, reviewed security audit findings, triaged backlog grooming output, synced with design on dark mode tokens, updated standup template, archived stale branches list, confirmed release calendar for patch train, documented rollback procedure for auth service deploy.",
+      "content_type": "text",
+      "source": "sprint_notes.md"
+    }
+  ],
+  "must_contain": ["AuthService", "AssertionError", "knapsack budget"],
+  "must_preserve": ["special characters", "login"]
+}

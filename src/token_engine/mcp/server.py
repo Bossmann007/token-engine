@@ -142,13 +142,36 @@ def token_engine_analyze(input: str) -> dict[str, Any]:
 
 
 @mcp.tool(name="token_engine_compact_tools")
-def token_engine_compact_tools(tools_json: str) -> dict[str, Any]:
-    """Compact MCP tool schemas."""
+def token_engine_compact_tools(
+    tools_json: str,
+    mode: str = "compact",
+    level: str = "medium",
+) -> dict[str, Any]:
+    """Compact MCP tool schemas. mode=lazy returns catalog + session_id for on-demand lookup."""
     data = json.loads(tools_json)
     tools = data if isinstance(data, list) else data.get("tools", [])
     engine = _engine()
+
+    if mode.lower() == "lazy":
+        catalog, session_id, stats = engine.lazy_tool_catalog(tools, level=level)
+        return {"catalog": catalog, "session_id": session_id, "stats": stats}
+
     compacted, stats = engine.compact_tool_schemas(tools)
+    if len(tools) >= engine.config.lazy_schema_min_tools and stats.get("ratio", 0) < 0.5:
+        stats["hint"] = (
+            f"{len(tools)} tools — retry mode=lazy level={level} for on-demand schemas"
+        )
     return {"tools": compacted, "stats": stats}
+
+
+@mcp.tool(name="token_engine_get_tool_schema")
+def token_engine_get_tool_schema(session_id: str, tool_name: str) -> dict[str, Any]:
+    """Fetch full compacted schema for one tool from a lazy catalog session."""
+    engine = _engine()
+    schema, stats = engine.get_lazy_tool_schema(session_id, tool_name)
+    if schema is None:
+        return {"error": stats.get("error", "not found"), "stats": stats}
+    return {"schema": schema, "stats": stats}
 
 
 @mcp.tool(name="token_engine_sandbox")

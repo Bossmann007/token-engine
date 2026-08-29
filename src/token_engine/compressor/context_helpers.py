@@ -9,6 +9,25 @@ from token_engine.core.types import ContentItem, ContentType, RelevanceTier
 
 GUTTER_PATTERN = re.compile(r"^(\s*\d+[|:]\s?)(.*)$")
 
+def knapsack_stub(item: ContentItem) -> ContentItem:
+    """One-line placeholder when hybrid knapsack drops an item under budget pressure."""
+    stub = (
+        f"[dropped: {item.id} | {item.tier.value} | "
+        f"{item.token_count}tok — knapsack budget; use ccr_retrieve if needed]"
+    )
+    return ContentItem(
+        id=item.id,
+        content=stub,
+        content_type=ContentType.TEXT,
+        source=item.source,
+        metadata={**item.metadata, "knapsack_dropped": True, "original_tokens": item.token_count},
+        tier=item.tier,
+        token_count=len(stub.split()),  # overwritten by caller
+        dependencies=item.dependencies,
+        timestamp=item.timestamp,
+    )
+
+
 GIT_NOISE_PATH = re.compile(
     r"(?:^|/)(?:node_modules|__pycache__|\.pytest_cache|\.venv|venv|dist|coverage|"
     r"\.idea|\.vscode|\.mypy_cache|\.ruff_cache|build|\.tox|\.nox|htmlcov|"

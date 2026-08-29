@@ -146,6 +146,21 @@ def cursor_setup_cmd(global_setup: bool) -> None:
     run_cursor_setup(global_setup=global_setup)
 
 
+@cli.command("serve")
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option("--port", default=8741, show_default=True, type=int)
+def serve_cmd(host: str, port: int) -> None:
+    """Start REST API for harness integration (optimize-context on :8741)."""
+    try:
+        import uvicorn
+    except ImportError as exc:
+        raise click.ClickException("Install API deps: pip install 'token-engine[api]'") from exc
+
+    click.echo(f"Token Engine API http://{host}:{port}")
+    click.echo("Harness: POST /optimize-context")
+    uvicorn.run("token_engine.api.server:app", host=host, port=port, log_level="info")
+
+
 @cli.command("benchmark")
 @click.option("--fixtures", type=click.Path(exists=True), default=None)
 @click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")

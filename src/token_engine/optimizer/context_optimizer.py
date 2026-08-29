@@ -16,6 +16,7 @@ from token_engine.compressor.context_helpers import (
     collapse_duplicate_items,
     collapse_grep_into_reads,
     collapse_obsolete_items,
+    knapsack_stub,
     strip_line_gutters,
 )
 from token_engine.compressor.cross_turn_dedup import DedupBlock, dedup_blocks
@@ -28,7 +29,7 @@ from token_engine.compressor.read_delta import ReadDelta
 from token_engine.compressor.smart_crusher import SmartCrusher
 from token_engine.compressor.toon_encoder import ToonEncoder
 from token_engine.compressor.tool_output_compressor import ToolOutputCompressor
-from token_engine.compressor.tool_schema_compactor import ToolSchemaCompactor
+from token_engine.compressor.tool_schema_compactor import LazyToolRegistry, ToolSchemaCompactor
 from token_engine.core.config import EngineConfig
 from token_engine.core.types import (
     AnalysisReport,
@@ -147,16 +148,8 @@ class ContextOptimizer:
                     item.tier = RelevanceTier.REDUNDANT
                     item.metadata["is_duplicate"] = True
 
-        if self._config.live_zone_mode:
-            selected = items
-        else:
-            selected = self._filter.select_items(
-                items,
-                max_tokens=self._config.max_tokens,
-                target_tokens=self._config.target_tokens,
-                task_query=task_query,
-                use_knapsack=self._config.enable_knapsack_selection,
-            )
+        selected = self._select_items(items, task_query)
+        knapsack_dropped = sum(1 for i in selected if i.metadata.get("knapsack_dropped"))
 
         optimized_items: list[ContentItem] = []
         for item in selected:
@@ -199,6 +192,7 @@ class ContextOptimizer:
                 "items_in": len(items),
                 "items_out": len(optimized_items),
                 "live_zone_mode": self._config.live_zone_mode,
+                "knapsack_dropped": knapsack_dropped,
                 "cache_warnings": cache_warnings[:10],
                 "feedback": self._feedback.stats() if self._feedback else {},
             },
@@ -211,8 +205,27 @@ class ContextOptimizer:
 
     def compact_tool_schemas(self, tools: list[dict]) -> tuple[list[dict], dict]:
         if not self._tool_schema:
-            return tools, {}
+            return tools, {"tools": len(tools), "skipped": True}
         return self._tool_schema.compact_tools(tools)
+
+    def lazy_tool_catalog(
+        self,
+        tools: list[dict],
+        *,
+        level: str | None = None,
+    ) -> tuple[str, str, dict]:
+        if not self._tool_schema:
+            session_id = LazyToolRegistry.store(tools)
+            catalog = "\n".join(t.get("name", "?") for t in tools)
+            return catalog, session_id, {"tools": len(tools), "skipped": True}
+        lvl = level or self._config.lazy_schema_default_level
+        return self._tool_schema.lazy_catalog(tools, level=lvl)
+
+    def get_lazy_tool_schema(self, session_id: str, tool_name: str) -> tuple[dict | None, dict]:
+        if not self._tool_schema:
+            raw = LazyToolRegistry.get(session_id, tool_name)
+            return ({"tool": raw} if raw else None), {"session_id": session_id}
+        return self._tool_schema.get_lazy_schema(session_id, tool_name)
 
     def _compress_item(
         self,
@@ -316,6 +329,48 @@ class ContextOptimizer:
 
     def analyze(self, items: list[ContentItem]) -> AnalysisReport:
         return self._analyzer.analyze_items(items, task_query=self._config.task_query)
+
+    def _select_items(self, items: list[ContentItem], task_query: str) -> list[ContentItem]:
+        if not self._config.live_zone_mode:
+            return self._filter.select_items(
+                items,
+                max_tokens=self._config.max_tokens,
+                target_tokens=self._config.target_tokens,
+                task_query=task_query,
+                use_knapsack=self._config.enable_knapsack_selection,
+            )
+
+        if not self._config.enable_hybrid_knapsack:
+            return items
+
+        budget = self._config.target_tokens or self._config.max_tokens
+        if budget is None:
+            return items
+
+        total = sum(i.token_count for i in items)
+        threshold = int(budget * self._config.knapsack_budget_threshold)
+        if total <= threshold:
+            return items
+
+        target = int(budget * self._config.hybrid_knapsack_target_ratio)
+        kept = self._filter.select_items(
+            items,
+            max_tokens=self._config.max_tokens,
+            target_tokens=target,
+            task_query=task_query,
+            use_knapsack=True,
+            drop_redundant=True,
+        )
+        kept_ids = {i.id for i in kept}
+        selected: list[ContentItem] = []
+        for item in items:
+            if item.id in kept_ids:
+                selected.append(item)
+            else:
+                stub = knapsack_stub(item)
+                stub.token_count = self._tokenizer.count(stub.content)
+                selected.append(stub)
+        return selected
 
     @staticmethod
     def _infer_task_query(items: list[ContentItem]) -> str:

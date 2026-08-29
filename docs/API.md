@@ -109,6 +109,21 @@ tokens = engine.count_tokens(text)
 cost = engine.estimate_cost(input_tokens=tokens)
 ```
 
+## Harness (agent loop)
+
+```python
+from token_engine import HarnessClient
+
+client = HarnessClient()  # API if serve running, else in-process
+optimized = client.optimize_messages(
+    [{"role": "user", "content": long_context}],
+    task_query="fix auth bug",
+)
+llm_prompt = optimized["content"]
+```
+
+Start server: `token-engine serve` → `POST /optimize-context`
+
 ## CLI
 
 | Command | Description |
@@ -117,6 +132,7 @@ cost = engine.estimate_cost(input_tokens=tokens)
 | `token-engine optimize-context <json>` | Optimize JSON context |
 | `token-engine analyze <path>` | Analyze file or directory |
 | `token-engine benchmark` | Run benchmarks |
+| `token-engine serve` | Start harness API on port 8741 |
 | `token-engine compact-tools <json>` | Compact MCP tool schemas |
 
 Options: `--quality maximum|balanced|economy`, `--max-tokens N`, `--target-tokens N`, `--task "query"`

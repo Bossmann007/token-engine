@@ -16,6 +16,9 @@
   "enable_toon_encoding": true,
   "enable_read_delta": true,
   "enable_knapsack_selection": true,
+  "enable_hybrid_knapsack": true,
+  "knapsack_budget_threshold": 0.8,
+  "hybrid_knapsack_target_ratio": 0.95,
   "enable_read_lifecycle": true,
   "enable_compression_feedback": true,
   "enable_cache_aligner": true,
@@ -30,6 +33,8 @@
   "fail_closed": true,
   "tool_desc_max_chars": 120,
   "tool_desc_strip_semantic": true,
+  "lazy_schema_default_level": "medium",
+  "lazy_schema_min_tools": 20,
   "cache_ttl_seconds": 3600,
   "ccr_ttl_seconds": 1800
 }

@@ -88,4 +88,5 @@ class TestDefaultConfig:
         assert c.enable_knapsack_selection is True
         assert c.enable_sandbox_execute is True
         assert c.enable_rtk_filters is True
-        assert c.enable_cbm_bridge is True
+        assert c.enable_hybrid_knapsack is True
+        assert c.knapsack_budget_threshold == 0.8

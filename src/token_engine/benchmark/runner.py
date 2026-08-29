@@ -46,11 +46,16 @@ class BenchmarkRunner:
     def run_fixture(self, path: Path) -> BenchmarkResult:
         data = json.loads(path.read_text(encoding="utf-8"))
         name = data.get("name", path.stem)
+        fixture_config = self.config
+        if override := data.get("config"):
+            merged = {**self.config.model_dump(), **override}
+            fixture_config = EngineConfig.from_dict(merged)
+        engine = TokenEngine(fixture_config) if fixture_config is not self.config else self.engine
 
         if "items" in data:
             items = [ContentItem(**{**item, "content_type": ContentType(item.get("content_type", "unknown"))}) for item in data["items"]]
             start = time.perf_counter()
-            result = self.engine.optimize_context(items)
+            result = engine.optimize_context(items)
             latency = (time.perf_counter() - start) * 1000
         else:
             text = data.get("content", "")

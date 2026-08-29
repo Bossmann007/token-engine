@@ -2,6 +2,7 @@
 
 from token_engine.core.engine import TokenEngine
 from token_engine.core.config import EngineConfig, QualityLevel, CompressionLevel
+from token_engine.harness.client import HarnessClient
 from token_engine.core.types import (
     ContentItem,
     OptimizationResult,
@@ -19,4 +20,5 @@ __all__ = [
     "OptimizationResult",
     "AnalysisReport",
     "RelevanceTier",
+    "HarnessClient",
 ]
