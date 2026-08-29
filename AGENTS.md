@@ -13,4 +13,5 @@
 - token-engine lives at `C:\Users\enzo.bossmann\token-engine`
 - Global MCP: context7, token-engine, codebase-memory, notion (OAuth)
 - cursor-kit template at `C:\Users\enzo.bossmann\cursor-kit` replaces dotagents
-- Notion Life OS integrated via Notion MCP; Mafioso vault is archive only
+- Skills: mattpocock/skills + find-skills in `~/.cursor/skills/`; book rules in `~/.cursor/rules/books/`
+- PUCPR 2026/2: pucpr-canvas + pucpr-tutor (6 disciplinas alinhadas)
