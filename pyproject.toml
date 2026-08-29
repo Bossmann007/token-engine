@@ -27,10 +27,12 @@ dependencies = [
 
 [project.optional-dependencies]
 api = ["fastapi>=0.100.0", "uvicorn>=0.23.0"]
-dev = ["pytest>=7.0.0", "httpx>=0.24.0"]
+cursor = ["mcp>=1.0.0"]
+dev = ["pytest>=7.0.0", "httpx>=0.24.0", "mcp>=1.0.0"]
 
 [project.scripts]
 token-engine = "token_engine.cli.main:cli"
+token-engine-mcp = "token_engine.mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/token_engine"]

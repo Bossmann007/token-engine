@@ -1,0 +1,43 @@
+---
+description: Token Engine MCP — when and how to compress context in Cursor agent sessions.
+globs:
+alwaysApply: true
+---
+
+# Token Engine — Cursor integration
+
+MCP server `token-engine` provides Caveman-compatible compression tools.
+
+## When to compress
+
+| Situation | Action |
+|-----------|--------|
+| Tool output >500 tokens | `caveman_compress` |
+| pytest/cargo/npm log dump | `caveman_compress` content_type=log |
+| Large JSON API response | `caveman_compress` content_type=json |
+| git status with many files | `caveman_compress` |
+| Re-reading same file content | Avoid — use cross-turn pointer or diff |
+| 50+ MCP tool definitions | `token_engine_compact_tools` |
+
+## Workflow
+
+1. Run tool (bash, read, grep)
+2. If output large → `caveman_compress(input=..., task_query=<current task>)`
+3. Use `compressed` field in reasoning, not raw output
+4. Only `caveman_retrieve` if exact byte needed and not derivable from compressed view
+
+## Config defaults (Cursor)
+
+- `quality=balanced` — default agent work
+- `quality=maximum` — debugging, stack traces critical
+- `quality=economy` — huge log dumps only
+
+## Harness integration (future)
+
+When building harness, call Token Engine API before every LLM request:
+
+```
+POST http://127.0.0.1:8741/optimize-context
+```
+
+Live-zone mode: compress never drop messages.

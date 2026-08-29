@@ -138,6 +138,14 @@ def compact_tools_cmd(path: str, output: str | None) -> None:
     click.echo(f"Saved:     {stats.get('saved_chars', 0):,} chars ({stats.get('ratio', 0) * 100:.1f}%)")
 
 
+@cli.command("cursor-setup")
+@click.option("--global", "global_setup", is_flag=True, help="Show global MCP config")
+def cursor_setup_cmd(global_setup: bool) -> None:
+    """Set up Ponytail + Caveman + Token Engine for Cursor."""
+    from token_engine.cli.cursor_setup import run_cursor_setup
+    run_cursor_setup(global_setup=global_setup)
+
+
 @cli.command("benchmark")
 @click.option("--fixtures", type=click.Path(exists=True), default=None)
 @click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "token-engine": {
+      "command": "python3",
+      "args": ["-m", "token_engine.mcp.server"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    }
+  }
+}
