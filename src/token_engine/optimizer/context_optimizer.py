@@ -11,6 +11,12 @@ from token_engine.cache.feedback import CompressionFeedback
 from token_engine.ccr.store import CCRStore
 from token_engine.compressor.base import Compressor
 from token_engine.compressor.code_compressor import CodeCompressor
+from token_engine.compressor.context_helpers import (
+    collapse_duplicate_items,
+    collapse_grep_into_reads,
+    collapse_obsolete_items,
+    strip_line_gutters,
+)
 from token_engine.compressor.cross_turn_dedup import DedupBlock, dedup_blocks
 from token_engine.compressor.deduplicator import Deduplicator
 from token_engine.compressor.detect import detect_content_type
@@ -77,8 +83,29 @@ class ContextOptimizer:
         cache_hits = 0
         base_aggressiveness = self._config.compression_aggressiveness()
         cache_warnings: list[dict] = []
+        task_query = self._config.task_query or self._infer_task_query(items)
 
-        # Read delta on file items
+        # Strip read-tool line gutters early (token-savior / caveman)
+        for item in items:
+            if item.content_type in (ContentType.CODE, ContentType.TEXT):
+                stripped, changed = strip_line_gutters(item.content)
+                if changed:
+                    item.content = stripped
+                    item.token_count = self._tokenizer.count(item.content)
+                    item.metadata["gutter_stripped"] = True
+
+        # Collapse grep hits covered by earlier reads (token-optimizer read-cache)
+        collapse_grep_into_reads(items)
+
+        # Cross-turn dedup before read-delta (headroom order)
+        if self._config.enable_cross_turn_dedup and len(items) > 1:
+            blocks = [DedupBlock(text=item.content, turn=i) for i, item in enumerate(items)]
+            deduped_blocks, _ = dedup_blocks(blocks)
+            for item, block in zip(items, deduped_blocks):
+                item.content = block.text
+                item.token_count = self._tokenizer.count(item.content)
+
+        # Read delta on file items (token-optimizer read-cache)
         if self._read_delta:
             for item in items:
                 path = item.source or item.metadata.get("path", "")
@@ -89,19 +116,18 @@ class ContextOptimizer:
                         item.token_count = self._tokenizer.count(item.content)
                         item.metadata["read_delta"] = delta.strategy
 
-        # Cross-turn dedup
-        if self._config.enable_cross_turn_dedup and len(items) > 1:
-            blocks = [DedupBlock(text=item.content, turn=i) for i, item in enumerate(items)]
-            deduped_blocks, _ = dedup_blocks(blocks)
-            for item, block in zip(items, deduped_blocks):
-                item.content = block.text
-                item.token_count = self._tokenizer.count(item.content)
-
         # Stale read pruning
         if self._config.enable_read_lifecycle:
             items = prune_stale_reads(items)
 
-        analysis = self._analyzer.analyze_items(items, task_query=self._config.task_query)
+        analysis = self._analyzer.analyze_items(items, task_query=task_query)
+
+        if analysis.duplicates:
+            collapse_duplicate_items(items, analysis.duplicates)
+
+        collapse_obsolete_items(items)
+        for item in items:
+            item.token_count = self._tokenizer.count(item.content)
 
         for id_a, id_b in analysis.duplicates:
             for item in items:
@@ -116,7 +142,7 @@ class ContextOptimizer:
                 items,
                 max_tokens=self._config.max_tokens,
                 target_tokens=self._config.target_tokens,
-                task_query=self._config.task_query,
+                task_query=task_query,
                 use_knapsack=self._config.enable_knapsack_selection,
             )
 
@@ -125,7 +151,7 @@ class ContextOptimizer:
             agg = base_aggressiveness
             if self._feedback:
                 agg = self._feedback.suggested_aggressiveness(item.source, agg)
-            compressed_item, hit = self._compress_item(item, agg)
+            compressed_item, hit = self._compress_item(item, agg, task_query=task_query)
             if hit:
                 cache_hits += 1
             optimized_items.append(compressed_item)
@@ -136,10 +162,9 @@ class ContextOptimizer:
 
         output_parts = []
         for item in optimized_items:
-            header = f"<!-- {item.id} [{item.tier.value}] -->"
-            output_parts.append(f"{header}\n{item.content}")
+            output_parts.append(f"<!-- {item.id} -->\n{item.content}")
 
-        output = "\n\n---\n\n".join(output_parts)
+        output = "\n\n".join(output_parts)
         original_tokens = sum(i.token_count for i in items)
         optimized_tokens = self._tokenizer.count(output)
         latency_ms = (time.perf_counter() - start) * 1000
@@ -174,7 +199,13 @@ class ContextOptimizer:
             return tools, {}
         return self._tool_schema.compact_tools(tools)
 
-    def _compress_item(self, item: ContentItem, aggressiveness: float) -> tuple[ContentItem, bool]:
+    def _compress_item(
+        self,
+        item: ContentItem,
+        aggressiveness: float,
+        *,
+        task_query: str = "",
+    ) -> tuple[ContentItem, bool]:
         cache_hit = False
         original_token_count = item.token_count
 
@@ -194,7 +225,7 @@ class ContextOptimizer:
 
         tool_comp = self._compressors[-1]
         if self._config.enable_tool_output_compression:
-            tool_result = tool_comp.compress(content, aggressiveness=aggressiveness, query=self._config.task_query)
+            tool_result = tool_comp.compress(content, aggressiveness=aggressiveness, query=task_query)
             if tool_result.compressed and tool_result.strategy != "tool_output":
                 content = tool_result.content
                 strategy = tool_result.strategy
@@ -203,7 +234,7 @@ class ContextOptimizer:
             best_result = None
             for compressor in self._compressors:
                 if compressor.can_handle(item.content_type):
-                    kwargs = {"aggressiveness": aggressiveness, "query": self._config.task_query}
+                    kwargs = {"aggressiveness": aggressiveness, "query": task_query}
                     if isinstance(compressor, LogCompressor):
                         kwargs["use_template_mining"] = self._config.enable_log_template_mining
                     result = compressor.compress(content, **kwargs)
@@ -261,6 +292,13 @@ class ContextOptimizer:
 
     def analyze(self, items: list[ContentItem]) -> AnalysisReport:
         return self._analyzer.analyze_items(items, task_query=self._config.task_query)
+
+    @staticmethod
+    def _infer_task_query(items: list[ContentItem]) -> str:
+        for item in items:
+            if item.source == "user" or item.metadata.get("content_role") == "user":
+                return item.content[:300]
+        return ""
 
     @property
     def cache_stats(self) -> dict:

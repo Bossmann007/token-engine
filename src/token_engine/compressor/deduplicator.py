@@ -91,14 +91,38 @@ class Deduplicator:
         """Find duplicate pairs among (id, content) items."""
         hash_to_id: dict[str, str] = {}
         pairs: list[tuple[str, str]] = []
+        seen_pairs: set[tuple[str, str]] = set()
 
+        normalized_items: list[tuple[str, str, str]] = []
         for item_id, content in items:
             if len(content.strip()) < 50:
                 continue
+            normalized = _normalize(content)
+            normalized_items.append((item_id, content, normalized))
+
+        for item_id, content, normalized in normalized_items:
             h = _hash_content(content)
             if h in hash_to_id:
-                pairs.append((hash_to_id[h], item_id))
+                pair = (hash_to_id[h], item_id)
+                if pair not in seen_pairs:
+                    pairs.append(pair)
+                    seen_pairs.add(pair)
             else:
                 hash_to_id[h] = item_id
+
+        # Subset / near-verbatim duplicates (token-optimizer read-cache pattern)
+        for i, (id_a, _content_a, norm_a) in enumerate(normalized_items):
+            for id_b, _content_b, norm_b in normalized_items[i + 1 :]:
+                if id_a == id_b:
+                    continue
+                pair = (id_a, id_b)
+                if pair in seen_pairs:
+                    continue
+                if len(norm_b) >= 40 and norm_b in norm_a:
+                    pairs.append(pair)
+                    seen_pairs.add(pair)
+                elif len(norm_a) >= 40 and norm_a in norm_b:
+                    pairs.append((id_b, id_a))
+                    seen_pairs.add((id_b, id_a))
 
         return pairs

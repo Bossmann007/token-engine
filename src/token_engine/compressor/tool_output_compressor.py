@@ -6,8 +6,9 @@ import re
 
 from token_engine.compressor.base import CompressResult, Compressor
 from token_engine.core.types import ContentType
-from token_engine.compressor.log_compressor import LogCompressor
+from token_engine.compressor.context_helpers import filter_git_noise_paths
 from token_engine.compressor.detect import detect_content_type
+from token_engine.compressor.log_compressor import LogCompressor
 
 
 class ToolOutputCompressor(Compressor):
@@ -78,13 +79,21 @@ class ToolOutputCompressor(Compressor):
                 if current and stripped:
                     sections[current].append(stripped)
 
-        max_files = max(10, int(30 * (1 - aggressiveness)))
+        max_files = max(5, int(15 * (1 - aggressiveness)))
         for name, files in sections.items():
-            if files:
-                parts.append(f"{name}: {len(files)} files")
-                parts.extend(f"  {f}" for f in files[:max_files])
-                if len(files) > max_files:
-                    parts.append(f"  ... {len(files) - max_files} more")
+            if not files:
+                continue
+            if name == "untracked":
+                signal, noise = filter_git_noise_paths(files)
+                parts.append(f"{name}: {len(files)} files ({len(noise)} noise omitted)")
+                parts.extend(f"  {f}" for f in signal[:max_files])
+                if len(signal) > max_files:
+                    parts.append(f"  ... {len(signal) - max_files} more")
+                continue
+            parts.append(f"{name}: {len(files)} files")
+            parts.extend(f"  {f}" for f in files[:max_files])
+            if len(files) > max_files:
+                parts.append(f"  ... {len(files) - max_files} more")
 
         out = "\n".join(parts) if parts else text
         if len(out) >= len(text):
@@ -96,6 +105,7 @@ class ToolOutputCompressor(Compressor):
         summary: list[str] = []
         failed_tests: list[str] = []
         failure_sections: list[str] = []
+        error_lines: list[str] = []
         in_failures_section = False
         current_section: list[str] = []
 
@@ -104,6 +114,10 @@ class ToolOutputCompressor(Compressor):
                 summary.append(line)
             if "FAILED" in line and "::" in line:
                 failed_tests.append(line.strip())
+            if line.strip().startswith("E ") and (
+                "AssertionError" in line or "Error" in line or "Exception" in line
+            ):
+                error_lines.append(line.strip())
             if "FAILURES" in line and line.startswith("="):
                 in_failures_section = True
                 current_section = [line]
@@ -126,6 +140,9 @@ class ToolOutputCompressor(Compressor):
         if failed_tests:
             parts.append(f"=== FAILED TESTS ({len(failed_tests)}) ===")
             parts.extend(failed_tests[:max_failures])
+        if error_lines and not failure_sections:
+            parts.append(f"=== ERROR LINES ({len(error_lines)}) ===")
+            parts.extend(error_lines[:max_failures])
         if failure_sections:
             parts.append(f"=== FAILURE DETAILS ({len(failure_sections)}) ===")
             parts.extend(failure_sections[:max_failures])
