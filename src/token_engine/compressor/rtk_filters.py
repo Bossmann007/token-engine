@@ -401,9 +401,11 @@ def _compress_pnpm(text: str, aggressiveness: float) -> CompressResult:
     if warnings and aggressiveness < 0.7:
         parts.append(f"=== WARNINGS ({len(warnings)}) ===")
         parts.extend(l.strip() for l in warnings[:max_lines])
-    elif progress:
+    elif progress and not summary:
         parts.append(f"=== PROGRESS ({len(progress)}, last {max_lines}) ===")
         parts.extend(l.strip() for l in progress[-max_lines:])
+    elif progress and summary:
+        parts.append(f"Progress: {len(progress)} resolution steps omitted")
 
     return _finish(text, "\n".join(parts), "pnpm")
 

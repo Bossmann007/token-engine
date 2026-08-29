@@ -7,6 +7,11 @@ import re
 
 from token_engine.core.types import ContentType
 
+try:
+    from token_engine.compressor import rtk_filters as _rtk
+except ImportError:
+    _rtk = None
+
 
 def detect_content_type(text: str, hint: str = "") -> ContentType:
     if hint:
@@ -25,6 +30,9 @@ def detect_content_type(text: str, hint: str = "") -> ContentType:
     stripped = text.strip()
     if not stripped:
         return ContentType.TEXT
+
+    if _rtk and _rtk.detect_rtk_tool(stripped):
+        return ContentType.TOOL_OUTPUT
 
     # JSON
     if stripped[0] in "{[":

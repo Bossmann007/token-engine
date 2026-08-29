@@ -80,8 +80,12 @@ class BenchmarkRunner:
 
     def run_text_fixture(self, path: Path) -> BenchmarkResult:
         text = path.read_text(encoding="utf-8")
+        hint = "tool_output" if path.stem in {
+            "npm_install", "jest_failures", "pnpm_install", "vite_build",
+            "docker_build", "cargo_build", "app_log",
+        } else ""
         start = time.perf_counter()
-        result = self.engine.optimize(text)
+        result = self.engine.optimize(text, content_type=hint)
         latency = (time.perf_counter() - start) * 1000
         stats = result.stats
 
