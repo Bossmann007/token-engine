@@ -10,6 +10,8 @@ from typing import Any
 from token_engine.compressor.base import CompressResult, Compressor
 from token_engine.core.types import ContentType
 
+SCALAR_TYPES = (str, int, float, bool, type(None))
+
 ERROR_KEYS = re.compile(r"(error|fail|exception|status|level|severity|code)", re.I)
 PROTECTED_PATTERNS = re.compile(
     r"(error|fatal|critical|exception|failed|panic|traceback)", re.I
@@ -152,15 +154,38 @@ class SmartCrusher(Compressor):
                 constants[key] = rows[0].get(key)
         return constants
 
+    @staticmethod
+    def _shallow_row(row: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for key, value in row.items():
+            if isinstance(value, dict):
+                out[key] = f"<dict:{len(value)} keys>"
+            elif isinstance(value, list):
+                out[key] = f"<list:{len(value)} items>"
+            elif isinstance(value, str) and len(value) > 120:
+                out[key] = value[:80] + "..."
+            else:
+                out[key] = value
+        return out
+
     def _compress_dict_arrays(self, data: dict, aggressiveness: float, query: str) -> dict | None:
         out = dict(data)
         changed = False
         for key, val in data.items():
             if isinstance(val, list) and len(val) >= 5:
                 keep_ratio = max(0.05, 1.0 - aggressiveness * 0.9)
-                max_keep = max(5, int(len(val) * keep_ratio))
+                if val and all(isinstance(x, SCALAR_TYPES) for x in val[: min(5, len(val))]):
+                    max_keep = max(3, int(len(val) * keep_ratio * 0.35))
+                elif val and all(isinstance(x, dict) for x in val[: min(3, len(val))]):
+                    avg_size = sum(len(json.dumps(x, separators=(",", ":"))) for x in val[:3]) / min(3, len(val))
+                    max_keep = 2 if avg_size > 180 else max(3, int(len(val) * keep_ratio * 0.5))
+                else:
+                    max_keep = max(5, int(len(val) * keep_ratio))
                 kept_indices = self._select_rows(val, max_keep, query)
-                out[key] = [val[i] for i in sorted(kept_indices)]
+                compressed_items = [val[i] for i in sorted(kept_indices)]
+                if val and all(isinstance(x, dict) for x in val[: min(3, len(val))]) and len(compressed_items) <= 2:
+                    compressed_items = [self._shallow_row(x) for x in compressed_items]
+                out[key] = compressed_items
                 if len(out[key]) < len(val):
                     out[f"_{key}_total"] = len(val)
                     changed = True

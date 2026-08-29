@@ -43,6 +43,34 @@ class TestCompressors:
         assert result.compressed
         assert len(result.content) < len(text)
 
+    def test_json_object_array_preserves_error_rows(self):
+        rows = [{"cpu": 12.0, "status": "ok"}] * 8
+        rows.append({"cpu": 99.0, "status": "error", "message": "CPU threshold exceeded"})
+        rows.extend({"cpu": 13.0, "status": "ok"} for _ in range(8))
+        text = json.dumps(rows)
+        result = JSONCompressor().compress(text, aggressiveness=0.5)
+        assert result.compressed
+        assert "error" in result.content
+        assert "_total" in result.content
+
+    def test_log_collapses_pytest_passed(self):
+        passed = [f"tests/test_api.py::test_{i} PASSED" for i in range(12)]
+        text = "\n".join([
+            "============================= test session starts ==============================",
+            "platform linux -- Python 3.12.0",
+            "collected 13 items",
+            *passed,
+            "tests/test_api.py::test_three FAILED",
+            "=================================== FAILURES ===================================",
+            "E       AssertionError: boom",
+            "=========================== short test summary info ============================",
+        ])
+        result = LogCompressor().compress(text, aggressiveness=0.5)
+        assert result.compressed
+        assert "PYTEST PASSED (12 tests omitted)" in result.content
+        assert "FAILED" in result.content
+        assert "AssertionError" in result.content
+
     def test_log_preserves_errors(self):
         text = (FIXTURES / "app_log.txt").read_text()
         comp = LogCompressor()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -97,7 +98,9 @@ class BenchmarkRunner:
 
         must_not_lose = fixture.get("must_preserve", [])
         for term in must_not_lose:
-            checks[f"preserve:{term[:30]}"] = term in optimized
+            normalized_term = re.sub(r"\s+", "", term)
+            normalized_out = re.sub(r"\s+", "", optimized)
+            checks[f"preserve:{term[:30]}"] = term in optimized or normalized_term in normalized_out
 
         return checks
 

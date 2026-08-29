@@ -200,16 +200,20 @@ class ContextOptimizer:
                 strategy = tool_result.strategy
 
         if strategy == "passthrough":
+            best_result = None
             for compressor in self._compressors:
                 if compressor.can_handle(item.content_type):
                     kwargs = {"aggressiveness": aggressiveness, "query": self._config.task_query}
                     if isinstance(compressor, LogCompressor):
                         kwargs["use_template_mining"] = self._config.enable_log_template_mining
                     result = compressor.compress(content, **kwargs)
-                    if result.compressed:
-                        content = result.content
-                        strategy = result.strategy
-                        break
+                    if result.compressed and (
+                        best_result is None or len(result.content) < len(best_result.content)
+                    ):
+                        best_result = result
+            if best_result is not None:
+                content = best_result.content
+                strategy = best_result.strategy
 
         new_tokens = self._tokenizer.count(content)
         chars_saved = len(item.content) - len(content)

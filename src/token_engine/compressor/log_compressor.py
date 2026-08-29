@@ -8,6 +8,9 @@ from token_engine.compressor.base import CompressResult, Compressor
 from token_engine.compressor.log_template import mine_log_templates
 from token_engine.core.types import ContentType
 
+PYTEST_PASSED = re.compile(r"::test_\w+\s+PASSED", re.IGNORECASE)
+PYTEST_FAILED = re.compile(r"::test_\w+\s+FAILED", re.IGNORECASE)
+PYTEST_SECTION = re.compile(r"^(=+\s*(FAILURES|ERRORS|short test summary info)\s*=+)", re.IGNORECASE)
 ERROR_PATTERNS = re.compile(
     r"(ERROR|FATAL|CRITICAL|Exception|Traceback|AssertionError|FAILED|Error:|panic!|fatal error)",
     re.IGNORECASE,
@@ -56,11 +59,37 @@ class LogCompressor(Compressor):
         critical_blocks: list[str] = []
         debug_count = 0
         info_collapsed: dict[str, int] = {}
+        pytest_passed = 0
+        pytest_failed: list[str] = []
 
         in_traceback = False
+        in_pytest_section = False
+        pytest_section_lines: list[str] = []
         traceback_lines: list[str] = []
 
         for line in lines:
+            if PYTEST_SECTION.match(line.strip()):
+                if pytest_section_lines:
+                    critical_blocks.append("\n".join(pytest_section_lines))
+                in_pytest_section = True
+                pytest_section_lines = [line]
+                continue
+
+            if in_pytest_section:
+                pytest_section_lines.append(line)
+                if line.strip().startswith("====") and len(pytest_section_lines) > 3:
+                    in_pytest_section = False
+                    critical_blocks.append("\n".join(pytest_section_lines))
+                    pytest_section_lines = []
+                continue
+
+            if PYTEST_FAILED.search(line):
+                pytest_failed.append(line.strip())
+                continue
+
+            if PYTEST_PASSED.search(line):
+                pytest_passed += 1
+                continue
             if CRITICAL_PATTERNS.search(line):
                 if traceback_lines:
                     critical_blocks.append("\n".join(traceback_lines))
@@ -93,11 +122,20 @@ class LogCompressor(Compressor):
 
         if traceback_lines:
             critical_blocks.append("\n".join(traceback_lines))
+        if pytest_section_lines:
+            critical_blocks.append("\n".join(pytest_section_lines))
 
         parts: list[str] = []
         if critical_blocks:
             parts.append("=== CRITICAL ===")
             parts.extend(critical_blocks)
+
+        if pytest_failed:
+            parts.append(f"=== PYTEST FAILED ({len(pytest_failed)}) ===")
+            parts.extend(pytest_failed)
+
+        if pytest_passed:
+            parts.append(f"=== PYTEST PASSED ({pytest_passed} tests omitted) ===")
 
         if errors:
             parts.append(f"=== ERRORS ({len(errors)}) ===")
