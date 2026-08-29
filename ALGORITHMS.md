@@ -1,125 +1,105 @@
-# Algorithms
+# Algorithms — Full Repository Audit (15 repos + 7 discovered)
 
-## Technique Selection
+## Repositories Analyzed
 
-After analyzing 9 repositories, these techniques were **selected**, **adapted**, or **rejected**.
+### Original 9
+| Repo | Primary Contribution |
+|------|---------------------|
+| [caveman](https://github.com/JuliusBrussee/caveman) | Type-detect compression, CCR, BM25 packing, fail-closed |
+| [rtk](https://github.com/rtk-ai/rtk) | 100+ bash output filters, truncation caps |
+| [context-mode](https://github.com/mksglu/context-mode) | Sandbox execute, FTS5 continuity |
+| [claude-token-optimizer](https://github.com/nadimtuhin/claude-token-optimizer) | Startup doc hygiene |
+| [token-optimizer](https://github.com/alexgreensh/token-optimizer) | Multi-surface hooks, read-cache, structure maps |
+| [token-optimizer-mcp](https://github.com/ooples/token-optimizer-mcp) | Hard deny + knowledge graph |
+| [claude-context](https://github.com/zilliztech/claude-context) | Semantic vector codebase search |
+| [claude-token-efficient](https://github.com/drona23/claude-token-efficient) | Output brevity rules |
+| [token-savior](https://github.com/Mibayy/token-savior) | Structural symbol navigation MCP |
 
-## Adopted Techniques
+### Additional 3 (user-provided)
+| Repo | Primary Contribution | Adopted in v0.2 |
+|------|---------------------|-----------------|
+| [headroom](https://github.com/headroomlabs-ai/headroom) | SmartCrusher, CCR, cross-turn dedup, tool schema compaction, live-zone | **Yes — core** |
+| [ponytail](https://github.com/dietrichgebert/ponytail) | Behavioral YAGNI steering (output-side) | **No** — agent skill layer |
+| [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) | Structural graph queries, compact tree output | **Partial** — integration pattern |
 
-### 1. Content-Type Detection + Routed Compression
-**Source**: caveman `engine/detect.go`
+### Discovered via search (7 additional)
+| Repo | Technique | Adopted |
+|------|-----------|---------|
+| [kompact](https://github.com/npow/kompact) | TF-IDF proxy pipeline, TOON encoding | Patterns only |
+| [SuperCompress](https://github.com/Supercompress/Supercompress) | Query-aware block scoring | Query param in SmartCrusher |
+| [TokenDamper](https://github.com/Epichlo/TokenDamper) | Knapsack planning, Myers diff | Phase 2 |
+| [slimctx](https://github.com/omkar9854/token_optimizer) | Log template mining, reversible transforms | Phase 2 |
+| [mcp-compressor](https://github.com/atlassian-labs/mcp-compressor) | On-demand tool schema lookup | Inspiration for compaction |
+| [mcp-sophon](https://github.com/lacausecrypto/mcp-sophon) | Deterministic Rust compressors | Reference architecture |
+| [context-compress](https://github.com/Open330/context-compress) | Index-backed search + wrap CLI | Complementary upstream |
 
-Strict detection order: JSON → diff → log → terminal → search → config → code → text.
+## Updated Comparison Matrix (15 repos)
 
-Each type gets a specialized compressor. Avoids one-size-fits-all damage.
+| Technique | Best Source | Quality | Economy | Latency | Adopted v0.2 |
+|-----------|------------|---------|---------|---------|--------------|
+| Statistical JSON crushing | headroom SmartCrusher | 9 | 9 | 8 | **Yes** |
+| CCR reversible compression | headroom / caveman | 10 | 9 | 9 | **Yes** |
+| Cross-turn verbatim dedup | headroom | 10 | 8 | 10 | **Yes** |
+| Tool schema compaction | headroom / mcp-compressor | 9 | 9 | 10 | **Yes** |
+| Live-zone-only (no drop) | headroom | 10 | 7 | 10 | **Yes** (config) |
+| Query-aware compression | SuperCompress / headroom | 9 | 9 | 8 | **Yes** |
+| Structural code graph | codebase-memory-mcp | 9 | 10 | 9 | Phase 2 (MCP bridge) |
+| Compact tree output | codebase-memory-mcp | 8 | 8 | 10 | Pattern adopted |
+| Behavioral output reduction | ponytail | 7 | 6 | 10 | **No** (skill layer) |
+| Knapsack token budgeting | TokenDamper | 8 | 8 | 7 | Phase 2 |
+| Log template mining | slimctx | 8 | 9 | 9 | Phase 2 |
+| MCP on-demand schemas | mcp-compressor | 8 | 9 | 8 | Partial (compaction) |
+| Proxy intercept | kompact / headroom | 8 | 9 | 7 | **No** (library only) |
+| ML compression (Kompress) | headroom | 7 | 8 | 4 | **No** (defer) |
+| Embedding RAG | claude-context | 8 | 7 | 5 | Phase 2 optional |
 
-### 2. Fail-Closed Compression
-**Source**: caveman `engine/engine.go`
+## New in v0.2
 
-Only apply compression when output token count is strictly less than input. Prevents silent quality regression.
+### SmartCrusher (`compressor/smart_crusher.py`)
+- Statistical row selection for JSON arrays
+- Preserves: errors, outliers (z-score > 2), first/last rows, query-relevant rows
+- Constant field factoring (hoist shared values)
+- Inspired by headroom `smart_crusher.py` (Rust); Python implementation
 
-### 3. Log Error/Stack Trace Preservation
-**Sources**: caveman, rtk
+### CCR Store (`ccr/store.py`)
+- Reversible compression with `<<ccr:handle>>` markers
+- Retrieve API for harness integration
+- Inspired by headroom + caveman CCR
 
-- CRITICAL patterns never dropped (Traceback, panic, AssertionError)
-- INFO/DEBUG collapsed aggressively
-- Repeated lines deduplicated with counts
+### Cross-Turn Dedup (`compressor/cross_turn_dedup.py`)
+- Prefix-monotonic verbatim back-references
+- Line-number-aware renumbering folds
+- Inspired by headroom `cross_turn_dedup.py`
 
-### 4. Code Structural Compression
-**Sources**: caveman `code_listing.go`, token-savior annotators
+### Tool Schema Compactor (`compressor/tool_schema_compactor.py`)
+- Strip JSON Schema annotation keys
+- Truncate descriptions to first sentence
+- Remove self-explanatory param descriptions
+- Inspired by headroom `tool_schema_compaction.py` + Atlassian mcp-compressor
 
-- Strip line-number gutters (`123| code`)
-- Preserve imports and signatures
-- Elide function bodies with markers
-- Only at moderate+ aggressiveness
+### Live-Zone Mode (`config.live_zone_mode`)
+- Compress all items, never drop messages
+- Preserves provider cache prefix stability
+- Inspired by headroom live-zone architecture
 
-### 5. Tool Output Compactors
-**Sources**: rtk, token-optimizer `bash_compress.py`
+## Rejected (unchanged + new)
 
-Per-tool handlers:
-- **git**: branch + file lists, not full diff
-- **pytest**: failures + summary, not passed tests
-- **grep**: group by file, cap matches
-- **npm**: errors + summary
-- **ls**: cap entries
-
-### 6. BM25 Relevance Ranking
-**Source**: caveman `contextwindow.Pack()`
-
-Lexical BM25 with boosts:
-- Recency (24h half-life)
-- Error content (+5.0)
-- Tier priority (CRITICAL +10.0)
-
-### 7. Cross-Item Deduplication
-**Source**: token-optimizer read-cache concept
-
-SHA-256 hash of normalized content. Duplicates marked REDUNDANT and dropped from selection.
-
-### 8. Smart Cache with Dependency Invalidation
-**Source**: token-optimizer-mcp cache-engine
-
-Cache compression results keyed by content hash + aggressiveness. Invalidate when dependency files change.
-
-### 9. Token Budget Filtering
-**Source**: caveman context window
-
-Always include CRITICAL tier. Fill remaining budget by BM25 rank.
-
-### 10. Adaptive Aggressiveness
-**Mapping**:
-- `quality=maximum` → 0.25 aggressiveness
-- `quality=balanced` → 0.55
-- `quality=economy` → 0.85
-
-Large tool outputs auto-route to tool compressor regardless.
-
-## Rejected Techniques
-
-| Technique | Source | Reason |
-|-----------|--------|--------|
-| PostToolUse-only compaction | token-savior | Doesn't reduce current-turn tokens |
-| Output brevity prompts | claude-token-efficient | Quality risk; adds input overhead every turn |
-| Caveman-speak skill | caveman | Reduces reasoning clarity |
-| Hard deny Read/Grep | token-optimizer-mcp | Too fragile for generic harness |
-| bytes/4 as sole metric | rtk | Inaccurate for gating decisions |
+| Technique | Source | Why |
+|-----------|--------|-----|
+| Ponytail behavioral ladder | ponytail | Output steering ≠ compression engine |
+| Full CBM indexing in Python | codebase-memory-mcp | 200K LOC C; integrate via MCP externally |
+| Headroom HTTP proxy | headroom | Out of scope for library |
+| ML Kompress path | headroom | ONNX latency, non-deterministic |
 | LLM summarization | various | Non-deterministic, adds cost |
-| Embedding RAG default | claude-context | Index cost; different problem class |
-| Pixel/skills-as-image | caveman | Model-dependent economics |
-| Full 65+ MCP tool surface | token-optimizer-mcp | Complexity without proportional gain |
-| Lossy compress without recovery | various | Violates quality-first priority |
 
-## Comparison Matrix
+## Integration with codebase-memory-mcp (Phase 2)
 
-| Technique | Best Source | Quality | Economy | Latency | Complexity | Adopted |
-|-----------|------------|---------|---------|---------|------------|---------|
-| Prompt compression | claude-token-optimizer | 9 | 7 | 10 | 2 | Patterns only |
-| Context compression | caveman | 9 | 9 | 7 | 8 | Yes |
-| Summarization | context-mode | 10 | 9 | 6 | 8 | No (store exact) |
-| Pruning | rtk | 8 | 8 | 10 | 5 | Yes |
-| Deduplication | token-optimizer | 8 | 8 | 9 | 5 | Yes |
-| Tool output compression | rtk + caveman | 9 | 9 | 9 | 6 | Yes |
-| Semantic filtering | claude-context | 8 | 7 | 5 | 7 | Phase 2 |
-| Caching | token-optimizer-mcp | 8 | 7 | 9 | 6 | Yes |
-| Token estimation | caveman (tiktoken) | 10 | — | 9 | 3 | Yes |
-| Context selection | caveman BM25 | 8 | 8 | 9 | 6 | Yes |
-| Structural code nav | token-savior | 9 | 9 | 7 | 7 | Partial |
-| Knowledge graph | token-optimizer-mcp | 8 | 8 | 6 | 10 | Phase 2 |
+Recommended pattern for AI Harness:
+```
+1. Agent calls codebase-memory-mcp search_graph (structural, ~3K tokens)
+2. Instead of Read full files, get symbol snippets
+3. Pass snippets to token-engine optimize_context()
+4. CCR handles any aggressive compression with recovery
+```
 
-## Quality Preservation Rules
-
-Hard-coded in compressors:
-
-1. Never remove `Traceback`, stack frames, or panic messages
-2. Never remove `AssertionError`, test failure details
-3. Never remove CRITICAL-tier items from context selection
-4. Fail-closed if compression doesn't reduce tokens
-5. Preserve file paths in error messages
-6. Preserve function/class signatures in code compression
-
-## Phase 2 Roadmap
-
-- Recovery handles (CCR-style) for lossy compression
-- Optional semantic index for monorepos (claude-context inspired)
-- Rule-based knowledge graph for session findings
-- Sandbox execute-outside-context (context-mode pattern)
+Expected combined savings: 90%+ on exploration workloads (CBM upstream) + 50%+ on tool outputs (engine downstream).

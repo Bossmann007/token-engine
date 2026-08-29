@@ -15,6 +15,9 @@ token-engine optimize benchmarks/fixtures/app_log.txt
 # Optimize agent context (JSON)
 token-engine optimize-context benchmarks/fixtures/agent_context.json --task "authentication bug"
 
+# Compact MCP tool schemas (70-90% savings on tool bloat)
+token-engine compact-tools tools.json
+
 # Analyze token usage
 token-engine analyze benchmarks/fixtures/
 
@@ -66,19 +69,20 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 
 ## Inspiration
 
-Built by analyzing 9 open-source token optimization projects:
+Built by analyzing **15 open-source projects** (+ 7 discovered via search):
 
 | Project | Concepts Adopted |
 |---------|-----------------|
-| [caveman](https://github.com/JuliusBrussee/caveman) | Type detection, fail-closed compression, BM25 packing, line-number gutter stripping |
-| [rtk](https://github.com/rtk-ai/rtk) | Command output filters, truncation caps, error priority |
+| [caveman](https://github.com/JuliusBrussee/caveman) | Type detection, fail-closed compression, BM25 packing |
+| [headroom](https://github.com/headroomlabs-ai/headroom) | **SmartCrusher, CCR, cross-turn dedup, tool schema compaction, live-zone** |
+| [rtk](https://github.com/rtk-ai/rtk) | Command output filters, truncation caps |
 | [context-mode](https://github.com/mksglu/context-mode) | FTS5/BM25 continuity, sandbox philosophy |
-| [claude-token-optimizer](https://github.com/nadimtuhin/claude-token-optimizer) | Startup doc hygiene patterns |
-| [token-optimizer](https://github.com/alexgreensh/token-optimizer) | Read-cache/delta, structure maps, char/token heuristic |
-| [token-optimizer-mcp](https://github.com/ooples/token-optimizer-mcp) | Knowledge retention concepts (phase 2) |
-| [claude-context](https://github.com/zilliztech/claude-context) | AST-aware chunking philosophy |
-| [claude-token-efficient](https://github.com/drona23/claude-token-efficient) | Minimal output rules (opt-in only) |
-| [token-savior](https://github.com/Mibayy/token-savior) | Structural symbol navigation, PreToolUse bash rewrite |
+| [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) | Structural graph queries (integration pattern) |
+| [mcp-compressor](https://github.com/atlassian-labs/mcp-compressor) | MCP tool schema bloat reduction |
+| [token-optimizer](https://github.com/alexgreensh/token-optimizer) | Read-cache/delta, structure maps |
+| [token-savior](https://github.com/Mibayy/token-savior) | Structural symbol navigation |
+| [SuperCompress](https://github.com/Supercompress/Supercompress) | Query-aware block scoring |
+| [ponytail](https://github.com/dietrichgebert/ponytail) | Evaluated — behavioral layer, not adopted in engine |
 
 See [ALGORITHMS.md](ALGORITHMS.md) for technique selection rationale.
 

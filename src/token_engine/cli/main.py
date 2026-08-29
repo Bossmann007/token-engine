@@ -119,6 +119,25 @@ def analyze_cmd(path: str, as_json: bool) -> None:
                 click.echo(f"  • {r}")
 
 
+@cli.command("compact-tools")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--output", "-o", type=click.Path())
+def compact_tools_cmd(path: str, output: str | None) -> None:
+    """Compact MCP tool schema definitions to reduce token bloat."""
+    engine = TokenEngine()
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    tools = data if isinstance(data, list) else data.get("tools", [])
+    compacted, stats = engine.compact_tool_schemas(tools)
+
+    if output:
+        Path(output).write_text(json.dumps(compacted, indent=2), encoding="utf-8")
+
+    click.echo(f"Tools: {stats.get('tools', len(tools))}")
+    click.echo(f"Original:  {stats.get('original_chars', 0):,} chars")
+    click.echo(f"Compacted: {stats.get('compacted_chars', 0):,} chars")
+    click.echo(f"Saved:     {stats.get('saved_chars', 0):,} chars ({stats.get('ratio', 0) * 100:.1f}%)")
+
+
 @cli.command("benchmark")
 @click.option("--fixtures", type=click.Path(exists=True), default=None)
 @click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")

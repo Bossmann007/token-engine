@@ -1,0 +1,25 @@
+{
+  "name": "cross_turn_reread",
+  "items": [
+    {
+      "id": "read_1",
+      "content": "   1| import os\n   2| import sys\n   3| \n   4| def main():\n   5|     print('hello')\n   6|     return 0\n   7| \n   8| if __name__ == '__main__':\n   9|     sys.exit(main())",
+      "content_type": "code",
+      "source": "src/app.py"
+    },
+    {
+      "id": "grep_result",
+      "content": "src/app.py:4: def main():\nsrc/app.py:5:     print('hello')",
+      "content_type": "search",
+      "source": "grep"
+    },
+    {
+      "id": "read_2",
+      "content": "   1| import os\n   2| import sys\n   3| \n   4| def main():\n   5|     print('hello')\n   6|     return 0\n   7| \n   8| if __name__ == '__main__':\n   9|     sys.exit(main())",
+      "content_type": "code",
+      "source": "src/app.py"
+    }
+  ],
+  "must_contain": ["same as msg", "def main"],
+  "must_preserve": ["import os"]
+}

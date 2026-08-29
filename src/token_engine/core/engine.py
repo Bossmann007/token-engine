@@ -76,6 +76,12 @@ class TokenEngine:
     def count_tokens(self, text: str) -> int:
         return self.tokenizer.count(text)
 
+    def compact_tool_schemas(self, tools: list[dict]) -> tuple[list[dict], dict]:
+        return self._optimizer.compact_tool_schemas(tools)
+
+    def retrieve_compressed(self, handle: str) -> str | None:
+        return self._optimizer.retrieve_ccr(handle)
+
     def estimate_cost(self, input_tokens: int, output_tokens: int = 0) -> float:
         inp = input_tokens * self.config.input_cost_per_million / 1_000_000
         out = output_tokens * self.config.output_cost_per_million / 1_000_000

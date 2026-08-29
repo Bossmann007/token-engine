@@ -116,6 +116,59 @@ class TestEngine:
         assert engine.count_tokens("hello world") > 0
 
 
+class TestSmartCrusher:
+    def test_preserves_outliers(self):
+        from token_engine.compressor.smart_crusher import SmartCrusher
+        import json
+        data = json.loads((FIXTURES / "metrics_timeseries.json").read_text())["content"]
+        comp = SmartCrusher()
+        result = comp.compress(data, aggressiveness=0.7)
+        assert result.compressed
+        assert "error" in result.content or "critical" in result.content
+
+
+class TestCrossTurnDedup:
+    def test_dedup_reread(self):
+        from token_engine.compressor.cross_turn_dedup import dedup_blocks, DedupBlock
+        data = json.loads((FIXTURES / "cross_turn_reread.json").read_text())
+        blocks = [DedupBlock(text=i["content"], turn=idx) for idx, i in enumerate(data["items"])]
+        deduped, stats = dedup_blocks(blocks)
+        assert stats["spans_folded"] >= 1
+        assert "same as msg" in deduped[-1].text
+
+
+class TestToolSchemaCompaction:
+    def test_compact_mcp_tools(self):
+        from token_engine.compressor.tool_schema_compactor import ToolSchemaCompactor
+        tools = [{
+            "name": "search",
+            "description": "Search the codebase for a query string. Returns matching files and line numbers.",
+            "inputSchema": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "title": "SearchInput",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query to find in the codebase"},
+                    "limit": {"type": "integer", "description": "Maximum number of results to return"},
+                },
+                "examples": [{"query": "auth", "limit": 10}],
+            },
+        }]
+        compactor = ToolSchemaCompactor()
+        compacted, stats = compactor.compact_tools(tools)
+        assert stats["saved_chars"] > 0
+        assert "$schema" not in json.dumps(compacted)
+
+
+class TestCCR:
+    def test_store_and_retrieve(self):
+        from token_engine.ccr.store import CCRStore
+        store = CCRStore()
+        handle = store.store("original content here")
+        assert store.retrieve(handle) == "original content here"
+        assert "<<ccr:" in store.marker(handle)
+
+
 class TestQualityPreservation:
     def test_pytest_fixture_quality(self):
         engine = TokenEngine()

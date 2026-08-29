@@ -103,6 +103,22 @@ def analyze(req: AnalyzeRequest) -> dict[str, Any]:
     }
 
 
+@app.post("/compact-tools")
+def compact_tools_endpoint(req: dict) -> dict[str, Any]:
+    engine = TokenEngine()
+    tools = req.get("tools", [])
+    compacted, stats = engine.compact_tool_schemas(tools)
+    return {"tools": compacted, "stats": stats}
+
+
+@app.post("/retrieve-ccr")
+def retrieve_ccr(req: dict) -> dict[str, str | None]:
+    engine = TokenEngine()
+    handle = req.get("handle", "")
+    content = engine.retrieve_compressed(handle)
+    return {"content": content}
+
+
 @app.post("/count-tokens")
 def count_tokens(req: AnalyzeRequest) -> dict[str, int]:
     engine = TokenEngine()

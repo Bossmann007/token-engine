@@ -41,9 +41,14 @@ class EngineConfig(BaseModel):
 
     # Feature flags
     enable_deduplication: bool = True
+    enable_cross_turn_dedup: bool = True
     enable_cache: bool = True
     enable_code_aware: bool = True
     enable_tool_output_compression: bool = True
+    enable_smart_crusher: bool = True
+    enable_ccr: bool = True
+    enable_tool_schema_compaction: bool = True
+    live_zone_mode: bool = False  # compress only, never drop messages (headroom-style)
     fail_closed: bool = True  # pass-through if compression doesn't help
 
     # Cache
@@ -53,6 +58,13 @@ class EngineConfig(BaseModel):
     # Task context (for relevance scoring)
     task_query: str = ""
     task_complexity: str = "medium"  # simple | medium | complex
+
+    # Tool schema compaction
+    tool_desc_max_chars: int = 120
+    tool_desc_strip_semantic: bool = True
+
+    # CCR
+    ccr_ttl_seconds: int = 1800
 
     # Cost estimation (USD per 1M tokens)
     input_cost_per_million: float = 2.50
