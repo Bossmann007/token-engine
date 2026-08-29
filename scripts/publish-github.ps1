@@ -28,8 +28,15 @@ if (-not $root) {
 
 Set-Location $root
 
-$exists = gh repo view $Repo 2>$null
-if ($LASTEXITCODE -ne 0) {
+$repoExists = $false
+try {
+    gh repo view $Repo 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $repoExists = $true }
+} catch {
+    $repoExists = $false
+}
+
+if (-not $repoExists) {
     Write-Host "Creating GitHub repo $Repo ($Visibility)..."
     gh repo create $Repo --$Visibility --source=. --remote=github --push
 } else {
