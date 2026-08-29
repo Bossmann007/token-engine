@@ -7,6 +7,7 @@ import re
 IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+")
 CLASS_RE = re.compile(r"^(\s*)class\s+(\w+)")
 DEF_RE = re.compile(r"^(\s*)(?:async\s+)?def\s+(\w+)\s*\(")
+BUG_CONTEXT_TERMS = frozenset({"special", "character", "invalid", "encode", "unicode", "regex"})
 
 
 def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple[str, bool]:
@@ -44,15 +45,20 @@ def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple
     for block in blocks:
         if block.kind == "class":
             parts.append(block.lines[0])
-            for sub in block.children:
-                sub_score = _score_block(sub, terms)
-                if sub_score >= threshold:
+            child_scores = [
+                (sub, _score_block(sub, terms) + _bug_relevance_boost(sub, terms))
+                for sub in block.children
+            ]
+            max_child = max((score for _, score in child_scores), default=0)
+            keep_floor = max(1, max_child - 1) if max_child > 2 else threshold
+            for sub, score in child_scores:
+                if score >= threshold and score >= keep_floor:
                     parts.extend(sub.lines)
                 else:
                     parts.append(f"{sub.indent}{sub.lines[0].strip()}  # ...")
                     changed = True
             parts.append("")
-            if any(_score_block(sub, terms) < threshold for sub in block.children):
+            if any(score < keep_floor or score < threshold for _, score in child_scores):
                 changed = True
             continue
 
@@ -79,6 +85,19 @@ def _preserves_query_terms(text: str, terms: set[str]) -> bool:
     lower = text.lower()
     hits = sum(1 for t in terms if t in lower)
     return hits >= max(1, len(terms) // 4)
+
+
+def _bug_relevance_boost(block: CodeBlock, terms: set[str]) -> int:
+    if not terms & BUG_CONTEXT_TERMS:
+        return 0
+    body = "\n".join(block.lines).lower()
+    boost = 0
+    name = block.name.lower()
+    if "validate" in name or "sanitize" in name or "check" in name:
+        boost += 4
+    if "re.match" in body or "regex" in body or "special" in body:
+        boost += 3
+    return boost
 
 
 def _score_block(block: "CodeBlock", terms: set[str]) -> int:

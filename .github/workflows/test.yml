@@ -23,4 +23,4 @@ jobs:
         run: pytest -q
 
       - name: Benchmark smoke
-        run: token-engine benchmark
+        run: token-engine benchmark --check-baseline

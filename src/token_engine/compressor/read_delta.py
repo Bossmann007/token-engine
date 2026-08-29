@@ -41,6 +41,14 @@ class ReadDelta:
 
         old_lines = old.splitlines()
         new_lines = new_content.splitlines()
+
+        if new_content.strip() in old:
+            return DeltaResult(
+                content=f"[subset read: {path}, {len(new_lines)}/{len(old_lines)}L — see earlier read]",
+                is_delta=True,
+                strategy="subset",
+            )
+
         diff = list(difflib.unified_diff(
             [l + "\n" for l in old_lines],
             [l + "\n" for l in new_lines],
@@ -58,16 +66,45 @@ class ReadDelta:
         removed = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
 
         header_overhead = 80  # unified diff headers
+        compact = _compact_delta_text(path, diff, added, removed)
+        if compact and len(compact) + 10 < len(new_content) + header_overhead:
+            self._versions[path] = new_content
+            return DeltaResult(
+                content=compact,
+                is_delta=True,
+                lines_added=added,
+                lines_removed=removed,
+                strategy="read_delta",
+            )
+
         if len(diff_text) >= len(new_content) + header_overhead:
             self._versions[path] = new_content
             return DeltaResult(content=new_content, is_delta=False, strategy="passthrough")
 
         self._versions[path] = new_content
-        header = f"=== DELTA {path} (+{added}/-{removed}) ===\n"
+        header = f"[DELTA {path} +{added}/-{removed}]\n"
+        body = "".join(
+            line for line in diff
+            if not line.startswith("---") and not line.startswith("+++")
+        )
         return DeltaResult(
-            content=header + diff_text,
+            content=header + body,
             is_delta=True,
             lines_added=added,
             lines_removed=removed,
             strategy="read_delta",
         )
+
+
+def _compact_delta_text(path: str, diff: list[str], added: int, removed: int) -> str | None:
+    """Drop unified-diff file headers; keep context and +/- lines."""
+    if added + removed > 12:
+        return None
+    body = [
+        line.rstrip("\n")
+        for line in diff
+        if not line.startswith("---") and not line.startswith("+++")
+    ]
+    if not body:
+        return None
+    return f"[DELTA {path} +{added}/-{removed}]\n" + "\n".join(body)

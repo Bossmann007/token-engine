@@ -1,0 +1,21 @@
+{
+  "minimum_total_ratio": 0.62,
+  "minimum_quality_score": 0.95,
+  "fixtures": {
+    "agent_context_session": 0.45,
+    "cross_turn_reread": 0.50,
+    "hybrid_knapsack_session": 0.35,
+    "large_json_api_response": 0.58,
+    "metrics_timeseries": 0.75,
+    "pytest_failures": 0.50,
+    "read_delta_session": 0.45,
+    "app_log": 0.75,
+    "cargo_build": 0.55,
+    "docker_build": 0.50,
+    "git_status": 0.45,
+    "jest_failures": 0.15,
+    "npm_install": 0.65,
+    "pnpm_install": 0.70,
+    "vite_build": 0.55
+  }
+}

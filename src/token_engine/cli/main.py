@@ -223,14 +223,29 @@ def serve_cmd(host: str, port: int) -> None:
 @cli.command("benchmark")
 @click.option("--fixtures", type=click.Path(exists=True), default=None)
 @click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")
-def benchmark_cmd(fixtures: str | None, quality: str) -> None:
+@click.option("--check-baseline", is_flag=True, help="Fail if ratios regress below benchmarks/baseline.json")
+@click.option("--baseline", type=click.Path(exists=True), default=None, help="Baseline thresholds JSON")
+def benchmark_cmd(
+    fixtures: str | None, quality: str, check_baseline: bool, baseline: str | None
+) -> None:
     """Run compression benchmarks."""
     from token_engine.benchmark.runner import BenchmarkRunner
 
-    fixtures_dir = Path(fixtures) if fixtures else Path(__file__).parent.parent.parent.parent / "benchmarks" / "fixtures"
+    root = Path(__file__).parent.parent.parent.parent
+    fixtures_dir = Path(fixtures) if fixtures else root / "benchmarks" / "fixtures"
+    baseline_path = Path(baseline) if baseline else root / "benchmarks" / "baseline.json"
     runner = BenchmarkRunner(EngineConfig(quality_level=QualityLevel(quality)))
     results = runner.run_all(fixtures_dir)
     runner.print_report(results)
+
+    if check_baseline:
+        failures = runner.check_baseline(results, baseline_path)
+        if failures:
+            click.echo("\nBaseline regressions:")
+            for msg in failures:
+                click.echo(f"  • {msg}")
+            raise SystemExit(1)
+        click.echo(f"\nBaseline OK ({baseline_path.name})")
 
 
 @cli.command("stats")

@@ -135,6 +135,31 @@ def collapse_obsolete_items(items: list[ContentItem]) -> int:
     return collapsed
 
 
+def collapse_superseded_reads(items: list[ContentItem]) -> int:
+    """Stub earlier full reads when a later item carries a Myers delta for the same path."""
+    delta_index_by_path: dict[str, int] = {}
+    for i, item in enumerate(items):
+        if item.metadata.get("read_delta") == "read_delta":
+            path = (item.source or item.metadata.get("path", "")).strip()
+            if path:
+                delta_index_by_path[path] = i
+
+    collapsed = 0
+    for i, item in enumerate(items):
+        path = (item.source or item.metadata.get("path", "")).strip()
+        if not path or delta_index_by_path.get(path, -1) <= i:
+            continue
+        if item.metadata.get("read_delta") in ("read_delta", "unchanged", "subset"):
+            continue
+        if item.content_type not in (ContentType.CODE, ContentType.TEXT):
+            continue
+        line_count = item.content.count("\n") + 1 if item.content else 0
+        item.content = f"[first read: {path}, {line_count}L — see DELTA below]"
+        item.metadata["read_superseded_by_delta"] = True
+        collapsed += 1
+    return collapsed
+
+
 def filter_git_noise_paths(paths: list[str]) -> tuple[list[str], list[str]]:
     """Split git untracked paths into signal vs boilerplate noise (rtk-inspired)."""
     signal: list[str] = []

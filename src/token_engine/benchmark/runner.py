@@ -156,3 +156,43 @@ class BenchmarkRunner:
         print("-" * 72)
         print(f"{'TOTAL':<25} {total_orig:>10,} {total_opt:>10,} {total_saved:>10,} {ratio * 100:>7.1f}%")
         print("=" * 72)
+
+    def check_baseline(self, results: list[BenchmarkResult], baseline_path: Path) -> list[str]:
+        """Return list of regression messages; empty if all thresholds met."""
+        if not baseline_path.exists():
+            return [f"baseline file not found: {baseline_path}"]
+
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        failures: list[str] = []
+
+        total_orig = sum(r.original_tokens for r in results)
+        total_saved = sum(r.tokens_saved for r in results)
+        total_ratio = total_saved / total_orig if total_orig else 0.0
+        min_total = baseline.get("minimum_total_ratio", 0.0)
+        if total_ratio < min_total:
+            failures.append(
+                f"TOTAL ratio {total_ratio * 100:.1f}% below baseline {min_total * 100:.1f}%"
+            )
+
+        min_quality = baseline.get("minimum_quality_score")
+        for result in results:
+            if not result.quality_checks or min_quality is None:
+                continue
+            if result.quality_score < min_quality:
+                failures.append(
+                    f"{result.name}: quality {result.quality_score * 100:.0f}% "
+                    f"below {min_quality * 100:.0f}%"
+                )
+
+        fixture_floor = baseline.get("fixtures", {})
+        for result in results:
+            floor = fixture_floor.get(result.name)
+            if floor is None:
+                continue
+            if result.compression_ratio < floor:
+                failures.append(
+                    f"{result.name}: {result.compression_ratio * 100:.1f}% "
+                    f"below floor {floor * 100:.1f}%"
+                )
+
+        return failures

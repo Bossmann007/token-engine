@@ -34,7 +34,7 @@ class ToolOutputCompressor(Compressor):
         tool_hint = self._detect_tool(text)
 
         if tool_hint == "git":
-            return self._compress_git(text, aggressiveness)
+            return self._compress_git(text, aggressiveness, query=query)
         if tool_hint == "pytest":
             return self._compress_pytest(text, aggressiveness)
         if tool_hint == "grep":
@@ -71,7 +71,7 @@ class ToolOutputCompressor(Compressor):
             return "grep"
         return None
 
-    def _compress_git(self, text: str, aggressiveness: float) -> CompressResult:
+    def _compress_git(self, text: str, aggressiveness: float, *, query: str = "") -> CompressResult:
         lines = text.splitlines()
         parts: list[str] = []
 
@@ -79,6 +79,7 @@ class ToolOutputCompressor(Compressor):
         if branch:
             parts.append(branch)
 
+        task_paths = _task_relevant_paths(query)
         sections = {"modified": [], "added": [], "deleted": [], "untracked": []}
         current = None
         for line in lines:
@@ -91,21 +92,39 @@ class ToolOutputCompressor(Compressor):
                 if current and stripped:
                     sections[current].append(stripped)
 
-        max_files = max(5, int(15 * (1 - aggressiveness)))
+        max_files = max(3, int(10 * (1 - aggressiveness)))
         for name, files in sections.items():
             if not files:
                 continue
             if name == "untracked":
                 signal, noise = filter_git_noise_paths(files)
+                if task_paths:
+                    relevant = [f for f in signal if _path_matches_task(f, task_paths)]
+                    if not relevant:
+                        parts.append(f"untracked: {len(files)} files (none task-relevant)")
+                        continue
+                    signal = relevant
                 parts.append(f"{name}: {len(files)} files ({len(noise)} noise omitted)")
                 parts.extend(f"  {f}" for f in signal[:max_files])
                 if len(signal) > max_files:
                     parts.append(f"  ... {len(signal) - max_files} more")
                 continue
-            parts.append(f"{name}: {len(files)} files")
-            parts.extend(f"  {f}" for f in files[:max_files])
-            if len(files) > max_files:
-                parts.append(f"  ... {len(files) - max_files} more")
+
+            visible = files
+            if task_paths:
+                visible = [f for f in files if _path_matches_task(f, task_paths)]
+                if not visible:
+                    parts.append(f"{name}: {len(files)} files (none task-relevant)")
+                    continue
+                if len(visible) < len(files):
+                    parts.append(f"{name}: {len(visible)}/{len(files)} task-relevant")
+                else:
+                    parts.append(f"{name}: {len(files)} files")
+            else:
+                parts.append(f"{name}: {len(files)} files")
+            parts.extend(f"  {f}" for f in visible[:max_files])
+            if len(visible) > max_files:
+                parts.append(f"  ... {len(visible) - max_files} more")
 
         out = "\n".join(parts) if parts else text
         if len(out) >= len(text):
@@ -116,48 +135,52 @@ class ToolOutputCompressor(Compressor):
         lines = text.splitlines()
         summary: list[str] = []
         failed_tests: list[str] = []
-        failure_sections: list[str] = []
         error_lines: list[str] = []
+        failure_sections: list[str] = []
         in_failures_section = False
         current_section: list[str] = []
 
         for line in lines:
+            stripped = line.strip()
             if re.search(r"\d+ passed|\d+ failed|\d+ error", line, re.IGNORECASE):
-                summary.append(line)
-            if "FAILED" in line and "::" in line:
-                failed_tests.append(line.strip())
-            if line.strip().startswith("E ") and (
+                summary.append(stripped)
+            elif stripped.startswith(("platform ", "plugins:", "collected ")):
+                continue
+            elif stripped.startswith("E ") and (
                 "AssertionError" in line or "Error" in line or "Exception" in line
             ):
-                error_lines.append(line.strip())
-            if "FAILURES" in line and line.startswith("="):
+                error_lines.append(stripped)
+            elif "FAILED" in line and "::" in line and not stripped.startswith("="):
+                failed_tests.append(stripped)
+            elif "FAILURES" in line and line.startswith("="):
                 in_failures_section = True
-                current_section = [line]
+                current_section = []
                 continue
-            if in_failures_section:
+            elif in_failures_section:
                 if line.startswith("=") and len(current_section) > 1:
-                    failure_sections.append("\n".join(current_section))
+                    failure_sections.append(_trim_pytest_failure_section(current_section))
                     in_failures_section = False
                     current_section = []
-                else:
+                elif not (re.match(r"^=+$", stripped) or re.match(r"^_{5,}$", stripped)):
                     current_section.append(line)
 
         if current_section:
-            failure_sections.append("\n".join(current_section))
+            failure_sections.append(_trim_pytest_failure_section(current_section))
 
-        max_failures = max(3, int(10 * (1 - aggressiveness * 0.5)))
+        max_failures = max(2, int(6 * (1 - aggressiveness * 0.5)))
         parts: list[str] = []
         if summary:
-            parts.extend(summary[:5])
-        if failed_tests:
-            parts.append(f"=== FAILED TESTS ({len(failed_tests)}) ===")
-            parts.extend(failed_tests[:max_failures])
-        if error_lines and not failure_sections:
-            parts.append(f"=== ERROR LINES ({len(error_lines)}) ===")
-            parts.extend(error_lines[:max_failures])
+            parts.extend(summary[:3])
         if failure_sections:
             parts.append(f"=== FAILURE DETAILS ({len(failure_sections)}) ===")
             parts.extend(failure_sections[:max_failures])
+        else:
+            if failed_tests:
+                parts.append(f"=== FAILED TESTS ({len(failed_tests)}) ===")
+                parts.extend(failed_tests[:max_failures])
+            if error_lines:
+                parts.append(f"=== ERROR LINES ({len(error_lines)}) ===")
+                parts.extend(error_lines[:max_failures])
 
         out = "\n".join(parts)
         if not out or len(out) >= len(text):
@@ -199,3 +222,33 @@ class ToolOutputCompressor(Compressor):
             return CompressResult(content=text, strategy="ls", compressed=False)
         out = "\n".join(lines[:max_entries]) + f"\n... {len(lines) - max_entries} more entries"
         return CompressResult(content=out, strategy="ls", lossless=False, compressed=True)
+
+
+def _task_relevant_paths(query: str) -> set[str]:
+    if not query.strip():
+        return set()
+    paths: set[str] = set()
+    for match in re.finditer(r"[\w./-]+\.(?:py|ts|tsx|js|jsx|go|rs|md|json|yaml|yml|toml)", query):
+        paths.add(match.group(0))
+    for match in re.finditer(r"(?:src|tests|lib|app)/[\w./-]+", query):
+        paths.add(match.group(0))
+    return paths
+
+
+def _path_matches_task(path: str, task_paths: set[str]) -> bool:
+    normalized = path.strip().replace("\\", "/")
+    for task_path in task_paths:
+        candidate = task_path.replace("\\", "/")
+        if candidate in normalized or normalized.endswith(candidate.rsplit("/", 1)[-1]):
+            return True
+    return False
+
+
+def _trim_pytest_failure_section(lines: list[str]) -> str:
+    kept: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^=+$", stripped) or re.match(r"^_{5,}$", stripped):
+            continue
+        kept.append(line)
+    return "\n".join(kept).strip()

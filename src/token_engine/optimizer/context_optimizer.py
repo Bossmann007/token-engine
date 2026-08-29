@@ -16,6 +16,7 @@ from token_engine.compressor.context_helpers import (
     collapse_duplicate_items,
     collapse_grep_into_reads,
     collapse_obsolete_items,
+    collapse_superseded_reads,
     knapsack_stub,
     strip_line_gutters,
 )
@@ -82,6 +83,8 @@ class ContextOptimizer:
 
     def optimize_items(self, items: list[ContentItem]) -> OptimizationResult:
         start = time.perf_counter()
+        if self._read_delta:
+            self._read_delta.reset()
         cache_hits = 0
         base_aggressiveness = self._config.compression_aggressiveness()
         cache_warnings: list[dict] = []
@@ -125,6 +128,12 @@ class ContextOptimizer:
                         item.content = delta.content
                         item.token_count = self._tokenizer.count(item.content)
                         item.metadata["read_delta"] = delta.strategy
+
+            collapsed_reads = collapse_superseded_reads(items)
+            if collapsed_reads:
+                for item in items:
+                    if item.metadata.get("read_superseded_by_delta"):
+                        item.token_count = self._tokenizer.count(item.content)
 
         # Cross-turn dedup on remaining verbatim repeats
         if self._config.enable_cross_turn_dedup and len(items) > 1:
@@ -237,6 +246,9 @@ class ContextOptimizer:
     ) -> tuple[ContentItem, bool]:
         cache_hit = False
         original_token_count = item.token_count
+
+        if item.metadata.get("read_delta") or item.metadata.get("read_superseded_by_delta"):
+            return item, False
 
         if self._cache:
             cache_key = SmartCache.make_key("compress", item.id, str(aggressiveness), item.content[:200])
@@ -394,6 +406,10 @@ class ContextOptimizer:
             or stripped.startswith("[CBM:")
             or stripped.startswith("[dropped:")
             or stripped.startswith("[grep:")
+            or stripped.startswith("[subset read:")
+            or stripped.startswith("[unchanged:")
+            or stripped.startswith("[first read:")
+            or stripped.startswith("[DELTA ")
         ):
             return True
         return "\n" not in stripped and len(stripped) <= 120

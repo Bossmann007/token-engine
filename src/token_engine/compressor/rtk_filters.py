@@ -353,12 +353,16 @@ def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
         parts.extend(l.strip() for l in errors[:12])
-    if warnings and aggressiveness < 0.7:
-        parts.append(f"=== WARNINGS ({len(warnings)}) ===")
-        parts.extend(l.strip() for l in warnings[:max_lines])
-    elif installing:
-        parts.append(f"=== INSTALL ({len(installing)}, last {max_lines}) ===")
-        parts.extend(l.strip() for l in installing[-max_lines:])
+    if not summary:
+        if warnings and aggressiveness < 0.7:
+            parts.append(f"=== WARNINGS ({len(warnings)}) ===")
+            parts.extend(l.strip() for l in warnings[:max_lines])
+        elif installing:
+            parts.append(f"=== INSTALL ({len(installing)}, last {max_lines}) ===")
+            parts.extend(l.strip() for l in installing[-max_lines:])
+    elif warnings or installing:
+        omitted = len(warnings) + len(installing)
+        parts.append(f"npm: {omitted} warn/install lines omitted")
 
     return _finish(text, "\n".join(parts), "npm")
 
@@ -367,10 +371,16 @@ def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
     passes = [l for l in lines if l.startswith("PASS ")]
 
-    # Small output: drop PASS lines only — avoid header overhead on tiny fixtures
+    # Small output: drop PASS lines and collapse duplicate summaries
     if len(lines) <= 15 and passes:
         kept = [l for l in lines if not l.startswith("PASS ")]
-        return _finish(text, "\n".join(kept), "jest")
+        summaries = [l for l in kept if re.search(r"Test Suites:|^Tests:", l)]
+        body = [l for l in kept if l not in summaries]
+        if len(summaries) > 1:
+            parts = body + ["; ".join(s.strip() for s in summaries)]
+        else:
+            parts = kept
+        return _finish(text, "\n".join(parts), "jest")
 
     summary = [l for l in lines if re.search(r"Test Suites:|^Tests:|^Snapshots:|^Time:", l)]
     fails = [l for l in lines if l.startswith("FAIL ") or l.strip().startswith("●")]

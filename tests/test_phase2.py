@@ -35,6 +35,23 @@ class TestReadDelta:
         r = rd.process("b.py", "same")
         assert "unchanged" in r.content
 
+    def test_subset_read(self):
+        rd = ReadDelta()
+        full = "import os\nimport sys\ndef main():\n    pass\n"
+        rd.process("c.py", full)
+        subset = "import os\nimport sys\ndef main():\n    pass"
+        r = rd.process("c.py", subset)
+        assert r.strategy == "subset"
+        assert "subset read" in r.content
+
+    def test_compact_delta_header(self):
+        rd = ReadDelta()
+        rd.process("app.py", "def main():\n    print('hi')\n")
+        r = rd.process("app.py", "def main():\n    print('hello')\n")
+        assert r.strategy == "read_delta"
+        assert r.content.startswith("[DELTA app.py")
+        assert "print('hello')" in r.content
+
 
 class TestToon:
     def test_uniform_array(self):
