@@ -24,11 +24,20 @@ def collapse_large_reads_to_cbm(
     task_query: str = "",
     min_lines: int = DEFAULT_MIN_LINES,
     min_chars: int = DEFAULT_MIN_CHARS,
+    session_code_tokens: int = 0,
+    session_min_lines: int = 15,
+    session_min_chars: int = 400,
+    session_code_threshold: int = 200,
 ) -> int:
     """Replace exploratory full-file reads with codebase-memory pointers + outline."""
+    use_session_thresholds = session_code_tokens >= session_code_threshold
+    effective_min_lines = session_min_lines if use_session_thresholds else min_lines
+    effective_min_chars = session_min_chars if use_session_thresholds else min_chars
+
     collapsed = 0
     query_lower = task_query.lower()
     query_terms = {t for t in re.split(r"\W+", query_lower) if len(t) > 2}
+    symbol_terms = _extract_symbol_terms(query_lower, query_terms)
 
     for item in items:
         if item.content_type not in (ContentType.CODE, ContentType.TEXT):
@@ -42,10 +51,10 @@ def collapse_large_reads_to_cbm(
 
         content = item.content
         lines = content.splitlines()
-        if len(lines) < min_lines and len(content) < min_chars:
+        if len(lines) < effective_min_lines and len(content) < effective_min_chars:
             continue
 
-        if _is_task_focus_file(path, query_lower, query_terms):
+        if _is_task_focus_file(path, query_lower, query_terms, symbol_terms):
             item.metadata["cbm_preserved"] = True
             continue
 
@@ -56,15 +65,24 @@ def collapse_large_reads_to_cbm(
         outline = _extract_outline(content)
         file_name = PurePosixPath(path.replace("\\", "/")).name
         item.content = (
-            f"[CBM: {path} — {len(lines)} lines omitted. "
-            f"Use codebase-memory search_graph/get_code_snippet for {file_name}. "
-            f"Outline: {outline}]"
+            f"[CBM: {path} — {len(lines)}L omitted. "
+            f"Use search_graph/get_code_snippet for {file_name}. "
+            f"{outline}]"
         )
         item.metadata["cbm_collapsed"] = True
         item.metadata["cbm_original_lines"] = len(lines)
         collapsed += 1
 
     return collapsed
+
+
+def _extract_symbol_terms(query_lower: str, query_terms: set[str]) -> set[str]:
+    symbols: set[str] = set()
+    for match in re.finditer(r"\b([a-z_][a-z0-9_]{2,})\b", query_lower):
+        word = match.group(1)
+        if word not in {"the", "and", "fix", "bug", "when", "with", "from", "that", "this"}:
+            symbols.add(word)
+    return symbols | query_terms
 
 
 def _is_pointer(content: str) -> bool:
@@ -77,10 +95,11 @@ def _is_pointer(content: str) -> bool:
     )
 
 
-def _is_task_focus_file(path: str, query_lower: str, query_terms: set[str]) -> bool:
+def _is_task_focus_file(path: str, query_lower: str, query_terms: set[str], symbol_terms: set[str] | None = None) -> bool:
     normalized = path.replace("\\", "/")
     file_name = PurePosixPath(normalized).name
     stem = PurePosixPath(normalized).stem
+    symbols = symbol_terms or query_terms
 
     if file_name.lower() in query_lower or normalized.lower() in query_lower:
         return True
@@ -88,6 +107,9 @@ def _is_task_focus_file(path: str, query_lower: str, query_terms: set[str]) -> b
     path_parts = {p.lower() for p in normalized.split("/") if p}
     overlap = query_terms & path_parts
     if overlap and (stem.lower() in overlap or file_name.lower() in overlap):
+        return True
+
+    if stem.lower() in symbols or file_name.lower() in symbols:
         return True
 
     return False

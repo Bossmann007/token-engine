@@ -36,4 +36,4 @@ class TestSupersededReads:
         assert result.stats.compression_ratio >= 0.45
         assert "DELTA" in result.content
         assert "logger.info" in result.content
-        assert "first read" in result.content
+        assert "first read" in result.content or "stale read" in result.content

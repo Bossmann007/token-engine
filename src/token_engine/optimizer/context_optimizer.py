@@ -9,17 +9,19 @@ from token_engine.analyzer.cache_aligner import detect_volatile_content
 from token_engine.cache.cache import SmartCache
 from token_engine.cache.feedback import CompressionFeedback
 from token_engine.ccr.store import CCRStore
-from token_engine.compressor.base import Compressor
+from token_engine.compressor.base import Compressor, CompressResult
 from token_engine.compressor.cbm_bridge import collapse_large_reads_to_cbm
 from token_engine.compressor.code_compressor import CodeCompressor
 from token_engine.compressor.context_helpers import (
     collapse_duplicate_items,
     collapse_grep_into_reads,
     collapse_obsolete_items,
+    collapse_stale_reads,
     collapse_superseded_reads,
     knapsack_stub,
     strip_line_gutters,
 )
+from token_engine.compressor.content_router import route_and_join
 from token_engine.compressor.cross_turn_dedup import DedupBlock, dedup_blocks
 from token_engine.compressor.deduplicator import Deduplicator
 from token_engine.compressor.detect import detect_content_type
@@ -105,11 +107,18 @@ class ContextOptimizer:
                     item.metadata["gutter_stripped"] = True
 
         if self._config.enable_cbm_bridge:
+            session_code_tokens = sum(
+                i.token_count for i in items if i.content_type in (ContentType.CODE, ContentType.TEXT)
+            )
             collapse_large_reads_to_cbm(
                 items,
                 task_query=task_query,
                 min_lines=self._config.cbm_min_lines,
                 min_chars=self._config.cbm_min_chars,
+                session_code_tokens=session_code_tokens,
+                session_min_lines=self._config.cbm_min_lines_session,
+                session_min_chars=self._config.cbm_min_chars_session,
+                session_code_threshold=self._config.cbm_session_code_threshold,
             )
             for item in items:
                 if item.metadata.get("cbm_collapsed"):
@@ -146,8 +155,16 @@ class ContextOptimizer:
         # Stale read pruning
         if self._config.enable_read_lifecycle:
             items = prune_stale_reads(items)
+            if self._config.live_zone_mode:
+                collapse_stale_reads(items)
+                for item in items:
+                    if item.metadata.get("stale_read_stub"):
+                        item.token_count = self._tokenizer.count(item.content)
 
         analysis = self._analyzer.analyze_items(items, task_query=task_query)
+        bm25_scores = {
+            item.id: score for item, score in self._ranker.score_items(items, task_query)
+        }
 
         if analysis.duplicates:
             collapse_duplicate_items(items, analysis.duplicates)
@@ -164,10 +181,11 @@ class ContextOptimizer:
 
         selected = self._select_items(items, task_query)
         knapsack_dropped = sum(1 for i in selected if i.metadata.get("knapsack_dropped"))
+        orig_tokens_map = {item.id: item.token_count for item in selected}
 
         optimized_items: list[ContentItem] = []
         for item in selected:
-            agg = base_aggressiveness
+            agg = self._aggressiveness_for_item(item, base_aggressiveness, bm25_scores.get(item.id, 0.0))
             if self._feedback:
                 agg = self._feedback.suggested_aggressiveness(item.source, agg)
             compressed_item, hit = self._compress_item(item, agg, task_query=task_query)
@@ -180,8 +198,8 @@ class ContextOptimizer:
                 cache_warnings.extend(detect_volatile_content(item.content))
 
         output_parts = []
-        for item in optimized_items:
-            output_parts.append(self._format_output_item(item))
+        for item, orig in zip(optimized_items, selected, strict=True):
+            output_parts.append(self._format_output_item(item, original_tokens=orig_tokens_map.get(orig.id)))
 
         output = "\n\n".join(output_parts)
         optimized_tokens = self._tokenizer.count(output)
@@ -249,6 +267,8 @@ class ContextOptimizer:
 
         if item.metadata.get("read_delta") or item.metadata.get("read_superseded_by_delta"):
             return item, False
+        if item.metadata.get("stale_read_stub"):
+            return item, False
 
         if self._cache:
             cache_key = SmartCache.make_key("compress", item.id, str(aggressiveness), item.content[:200])
@@ -272,31 +292,25 @@ class ContextOptimizer:
                 strategy = tool_result.strategy
 
         if strategy == "passthrough":
-            best_result = None
-            for compressor in self._compressors:
-                if compressor.can_handle(item.content_type):
-                    kwargs = {"aggressiveness": aggressiveness, "query": task_query}
-                    if isinstance(compressor, LogCompressor):
-                        kwargs["use_template_mining"] = self._config.enable_log_template_mining
-                    result = compressor.compress(content, **kwargs)
-                    if result.compressed and (
-                        best_result is None or len(result.content) < len(best_result.content)
-                    ):
-                        best_result = result
-            if best_result is not None:
-                content = best_result.content
-                strategy = best_result.strategy
+            routed = self._compress_with_router(content, item.content_type, aggressiveness, task_query)
+            if routed.compressed:
+                content = routed.content
+                strategy = routed.strategy
 
         new_tokens = self._tokenizer.count(content)
         chars_saved = len(item.content) - len(content)
         token_saved = original_token_count - new_tokens
         ccr_handle = None
 
+        ccr_min_tokens = self._config.ccr_min_token_saved
+        if item.tier == RelevanceTier.CRITICAL:
+            ccr_min_tokens = self._config.ccr_min_token_saved_critical
+
         if (
             self._ccr
             and strategy != "passthrough"
             and chars_saved >= self._config.ccr_min_chars_saved
-            and token_saved >= self._config.ccr_min_token_saved
+            and token_saved >= ccr_min_tokens
         ):
             handle = self._ccr.store(item.content, metadata={"strategy": strategy, "item_id": item.id})
             marker = self._ccr.marker(handle, chars_dropped=chars_saved)
@@ -305,13 +319,14 @@ class ContextOptimizer:
                 content = marked
                 ccr_handle = handle
 
-        new_tokens = self._tokenizer.count(content)
-        if self._config.fail_closed and new_tokens >= original_token_count:
-            content = item.content
-            new_tokens = original_token_count
-            strategy = "passthrough"
-            ccr_handle = None
-            token_saved = 0
+        if self._config.fail_closed:
+            saved_ratio = token_saved / original_token_count if original_token_count else 0
+            if new_tokens >= original_token_count or saved_ratio < self._config.fail_closed_min_ratio:
+                content = item.content
+                new_tokens = original_token_count
+                strategy = "passthrough"
+                ccr_handle = None
+                token_saved = 0
 
         if self._feedback:
             ratio = token_saved / original_token_count if original_token_count else 0
@@ -361,7 +376,10 @@ class ContextOptimizer:
             return items
 
         total = sum(i.token_count for i in items)
-        threshold = int(budget * self._config.knapsack_budget_threshold)
+        threshold_ratio = self._config.knapsack_budget_threshold
+        if len(items) >= self._config.knapsack_large_session_items:
+            threshold_ratio = self._config.knapsack_large_session_threshold
+        threshold = int(budget * threshold_ratio)
         if total <= threshold:
             return items
 
@@ -385,14 +403,83 @@ class ContextOptimizer:
                 selected.append(stub)
         return selected
 
-    def _format_output_item(self, item: ContentItem) -> str:
+    def _compress_with_router(
+        self,
+        content: str,
+        content_type: ContentType,
+        aggressiveness: float,
+        task_query: str,
+    ) -> CompressResult:
+        def pick_best(text: str, ct: ContentType) -> CompressResult:
+            best: CompressResult | None = None
+            for compressor in self._compressors:
+                if compressor.can_handle(ct):
+                    kwargs: dict = {"aggressiveness": aggressiveness, "query": task_query}
+                    if isinstance(compressor, LogCompressor):
+                        kwargs["use_template_mining"] = self._config.enable_log_template_mining
+                        if aggressiveness >= 0.75:
+                            kwargs["use_template_mining"] = True
+                    if isinstance(compressor, CodeCompressor):
+                        kwargs["min_chars"] = (
+                            self._config.query_slice_min_chars_session
+                            if task_query
+                            else self._config.query_slice_min_chars
+                        )
+                    result = compressor.compress(text, **kwargs)
+                    if result.compressed and (
+                        best is None or len(result.content) < len(best.content)
+                    ):
+                        best = result
+            return best or CompressResult(content=text, strategy="passthrough", compressed=False)
+
+        if self._config.enable_content_router and len(content) > 400:
+
+            def route_fn(text: str, **kwargs: object) -> CompressResult:
+                ct = kwargs.get("content_type") if isinstance(kwargs.get("content_type"), ContentType) else detect_content_type(text)
+                return pick_best(text, ct)
+
+            routed, strategies = route_and_join(
+                content, route_fn, aggressiveness=aggressiveness, query=task_query,
+            )
+            if len(routed) < len(content):
+                return CompressResult(
+                    content=routed, strategy="content_router:" + "+".join(strategies[:3]), compressed=True,
+                )
+        return pick_best(content, content_type)
+
+    def _aggressiveness_for_item(
+        self, item: ContentItem, base: float, bm25_score: float,
+    ) -> float:
+        tier_map = {
+            RelevanceTier.CRITICAL: 0.25,
+            RelevanceTier.HIGH: base,
+            RelevanceTier.MEDIUM: base,
+            RelevanceTier.LOW: min(0.85, base + 0.25),
+            RelevanceTier.REDUNDANT: 0.9,
+            RelevanceTier.DISCARDABLE: 0.95,
+        }
+        agg = tier_map.get(item.tier, base)
+        if bm25_score < 0.1 and item.tier not in (RelevanceTier.CRITICAL, RelevanceTier.HIGH):
+            agg = min(0.95, agg + 0.15)
+        elif bm25_score > 0.5:
+            agg = max(0.15, agg - 0.1)
+        return agg
+
+    def _format_output_item(self, item: ContentItem, *, original_tokens: int | None = None) -> str:
+        header = item.id
+        if (
+            self._config.show_token_savings_in_headers
+            and original_tokens
+            and original_tokens > item.token_count
+        ):
+            header = f"{item.id}|{original_tokens}→{item.token_count}tok"
         if self._config.compact_output_headers:
             if self._use_inline_header(item.content, item):
-                return f"[{item.id}] {item.content}"
-            return f"[{item.id}]\n{item.content}"
+                return f"[{header}] {item.content}"
+            return f"[{header}]\n{item.content}"
         if self._use_inline_header(item.content, item):
-            return f"<!-- {item.id} --> {item.content}"
-        return f"<!-- {item.id} -->\n{item.content}"
+            return f"<!-- {header} --> {item.content}"
+        return f"<!-- {header} -->\n{item.content}"
 
     @staticmethod
     def _use_inline_header(content: str, item: ContentItem) -> bool:
@@ -410,6 +497,7 @@ class ContextOptimizer:
             or stripped.startswith("[unchanged:")
             or stripped.startswith("[first read:")
             or stripped.startswith("[DELTA ")
+            or stripped.startswith("[stale read:")
         ):
             return True
         return "\n" not in stripped and len(stripped) <= 120

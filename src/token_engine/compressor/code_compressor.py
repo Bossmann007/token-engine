@@ -30,7 +30,7 @@ class CodeCompressor(Compressor):
     def content_types(self) -> set[ContentType]:
         return {ContentType.CODE, ContentType.SEARCH}
 
-    def compress(self, text: str, *, aggressiveness: float = 0.5, query: str = "") -> CompressResult:
+    def compress(self, text: str, *, aggressiveness: float = 0.5, query: str = "", min_chars: int = 200) -> CompressResult:
         # Strip line number gutters first
         lines = text.splitlines()
         stripped_lines = []
@@ -46,7 +46,7 @@ class CodeCompressor(Compressor):
         code = "\n".join(stripped_lines)
 
         if query:
-            sliced, did_slice = slice_code_by_query(code, query)
+            sliced, did_slice = slice_code_by_query(code, query, min_chars=min_chars)
             if did_slice:
                 return CompressResult(
                     content=sliced,

@@ -1,0 +1,59 @@
+{
+  "name": "large_agent_session",
+  "category": "session",
+  "items": [
+    {
+      "id": "system",
+      "content": "You are a senior software engineer.",
+      "content_type": "message",
+      "source": "system",
+      "metadata": {"content_role": "instruction"}
+    },
+    {
+      "id": "user_task",
+      "content": "Fix flaky test in src/api/users.py — test_delete_user returns not_found instead of deleted.",
+      "content_type": "message",
+      "source": "user"
+    },
+    {
+      "id": "file_users",
+      "content": "import logging\nfrom typing import Optional\n\nlogger = logging.getLogger(__name__)\n\nclass UserService:\n    def __init__(self, db):\n        self.db = db\n\n    def create_user(self, email: str) -> dict:\n        return self.db.insert(email)\n\n    def delete_user(self, user_id: int) -> dict:\n        user = self.db.find(user_id)\n        if not user:\n            return {\"status\": \"not_found\"}\n        self.db.delete(user_id)\n        return {\"status\": \"deleted\"}\n\n    def list_users(self) -> list:\n        return self.db.all()\n\n    def audit_log(self, action: str) -> None:\n        logger.info(action)\n",
+      "content_type": "code",
+      "source": "src/api/users.py"
+    },
+    {
+      "id": "file_unrelated",
+      "content": "def helper_a():\n    return 1\n\ndef helper_b():\n    return 2\n\ndef helper_c():\n    return 3\n\ndef helper_d():\n    return 4\n\ndef helper_e():\n    return 5\n\ndef helper_f():\n    return 6\n\ndef helper_g():\n    return 7\n\ndef helper_h():\n    return 8\n\ndef helper_i():\n    return 9\n\ndef helper_j():\n    return 10\n",
+      "content_type": "code",
+      "source": "src/utils/helpers.py"
+    },
+    {
+      "id": "pytest_output",
+      "content": "tests/test_api.py::test_delete_user FAILED\nE   AssertionError: assert 'not_found' == 'deleted'\n\n1 failed, 846 passed",
+      "content_type": "log",
+      "source": "pytest",
+      "metadata": {"is_error": true}
+    },
+    {
+      "id": "filler_log",
+      "content": "INFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\nINFO: heartbeat ok\n",
+      "content_type": "log",
+      "source": "app.log"
+    },
+    {
+      "id": "git_status",
+      "content": "On branch fix/delete-user\nChanges not staged for commit:\n  modified:   src/api/users.py\n  modified:   tests/test_api.py\n\nUntracked files:\n  debug.log\n  node_modules/\n  .pytest_cache/\n",
+      "content_type": "terminal",
+      "source": "git status"
+    },
+    {
+      "id": "old_notes",
+      "content": "TODO: remove legacy user module from v1.",
+      "content_type": "text",
+      "source": "notes.md"
+    }
+  ],
+  "must_contain": ["UserService", "delete_user", "AssertionError"],
+  "must_preserve": ["not_found", "deleted"],
+  "must_match": ["delete_user"]
+}

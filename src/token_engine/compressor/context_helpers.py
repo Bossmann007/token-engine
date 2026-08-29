@@ -6,6 +6,7 @@ import re
 
 from token_engine.analyzer.analyzer import TokenAnalyzer
 from token_engine.core.types import ContentItem, ContentType, RelevanceTier
+from token_engine.optimizer.read_lifecycle import _is_file_read
 
 GUTTER_PATTERN = re.compile(r"^(\s*\d+[|:]\s?)(.*)$")
 
@@ -131,6 +132,31 @@ def collapse_obsolete_items(items: list[ContentItem]) -> int:
             preview = preview[:77] + "..."
         item.content = f"[obsolete note: {preview}]"
         item.metadata["obsolete_collapsed"] = True
+        collapsed += 1
+    return collapsed
+
+
+def collapse_stale_reads(items: list[ContentItem]) -> int:
+    """Stub superseded file reads in live-zone mode (keeps message slot count)."""
+    by_path_latest: dict[str, ContentItem] = {}
+    for item in items:
+        path = (item.source or item.metadata.get("path", "")).strip()
+        if path and _is_file_read(item):
+            by_path_latest[path] = item
+
+    collapsed = 0
+    for item in items:
+        if not item.metadata.get("stale_read"):
+            continue
+        path = (item.source or item.metadata.get("path", "")).strip()
+        latest = by_path_latest.get(path)
+        if latest and latest.metadata.get("read_delta") in ("unchanged", "subset"):
+            item.metadata.pop("stale_read", None)
+            item.tier = RelevanceTier.MEDIUM
+            continue
+        lines = item.metadata.get("cbm_original_lines") or item.content.count("\n") + 1
+        item.content = f"[stale read: {path}, {lines}L — superseded by later read]"
+        item.metadata["stale_read_stub"] = True
         collapsed += 1
     return collapsed
 

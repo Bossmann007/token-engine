@@ -44,7 +44,8 @@ class LogCompressor(Compressor):
 
         # Template mining for repeated INFO/DEBUG lines (slimctx)
         if use_template_mining and aggressiveness >= 0.3:
-            mined, collapsed = mine_log_templates(lines, min_count=max(3, int(5 * (1 - aggressiveness))))
+            min_count = max(2, int(5 * (1 - aggressiveness))) if aggressiveness >= 0.7 else max(3, int(5 * (1 - aggressiveness)))
+            mined, collapsed = mine_log_templates(lines, min_count=min_count)
             if collapsed > 0:
                 lines = mined
                 text = "\n".join(lines)

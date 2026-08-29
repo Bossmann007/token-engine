@@ -71,11 +71,28 @@ class EngineConfig(BaseModel):
     # Codebase-memory bridge
     cbm_min_lines: int = 35
     cbm_min_chars: int = 800
+    cbm_min_lines_session: int = 15
+    cbm_min_chars_session: int = 400
+    cbm_session_code_threshold: int = 200
+
+    # Session / routing
+    enable_content_router: bool = True
+    query_slice_min_chars: int = 200
+    query_slice_min_chars_session: int = 80
 
     # CCR — only attach recovery marker when net savings remain
     ccr_min_token_saved: int = 100
     ccr_min_chars_saved: int = 400
+    ccr_min_token_saved_critical: int = 150
     compact_output_headers: bool = True
+    show_token_savings_in_headers: bool = True
+
+    # Knapsack — large sessions trigger earlier
+    knapsack_large_session_items: int = 15
+    knapsack_large_session_threshold: float = 0.6
+
+    # Fail-closed — economy allows smaller net savings
+    fail_closed_min_ratio: float = 0.03
 
     # Cache
     cache_ttl_seconds: int = 3600

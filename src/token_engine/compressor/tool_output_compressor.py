@@ -10,6 +10,7 @@ from token_engine.compressor.context_helpers import filter_git_noise_paths
 from token_engine.compressor.detect import detect_content_type
 from token_engine.compressor.log_compressor import LogCompressor
 from token_engine.compressor import rtk_filters
+from token_engine.compressor.test_output import compress_test_output, detect_test_runner
 
 
 class ToolOutputCompressor(Compressor):
@@ -35,6 +36,9 @@ class ToolOutputCompressor(Compressor):
 
         if tool_hint == "git":
             return self._compress_git(text, aggressiveness, query=query)
+        test_runner = detect_test_runner(text)
+        if test_runner:
+            return compress_test_output(text, test_runner, aggressiveness=aggressiveness)
         if tool_hint == "pytest":
             return self._compress_pytest(text, aggressiveness)
         if tool_hint == "grep":

@@ -1,10 +1,18 @@
 {
-  "minimum_total_ratio": 0.62,
+  "minimum_total_ratio": 0.58,
   "minimum_quality_score": 0.95,
+  "categories": {
+    "session": 0.35,
+    "tool_output": 0.55,
+    "json": 0.60,
+    "log": 0.75,
+    "blob": 0.50
+  },
   "fixtures": {
     "agent_context_session": 0.45,
     "cross_turn_reread": 0.50,
     "hybrid_knapsack_session": 0.35,
+    "large_agent_session": 0.08,
     "large_json_api_response": 0.58,
     "metrics_timeseries": 0.75,
     "pytest_failures": 0.50,

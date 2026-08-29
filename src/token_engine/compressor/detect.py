@@ -31,6 +31,9 @@ def detect_content_type(text: str, hint: str = "") -> ContentType:
     if not stripped:
         return ContentType.TEXT
 
+    if "Traceback (most recent call last)" in stripped:
+        return ContentType.LOG
+
     if _rtk and _rtk.detect_rtk_tool(stripped):
         return ContentType.TOOL_OUTPUT
 

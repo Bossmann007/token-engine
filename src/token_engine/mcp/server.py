@@ -10,6 +10,7 @@ from mcp.server.mcpserver import MCPServer
 
 from token_engine import QualityLevel, TokenEngine
 from token_engine.ccr.store import CCRStore
+from token_engine.compressor.session_parser import try_parse_session
 from token_engine.core.config import EngineConfig
 from token_engine.sandbox.executor import execute_and_compress
 
@@ -23,6 +24,7 @@ mcp = MCPServer(
 )
 
 _ccr = CCRStore()
+_lazy_sessions: dict[str, str] = {}
 _session_stats = {
     "compress_calls": 0,
     "tokens_before": 0,
@@ -54,18 +56,15 @@ def _normalize_handle(handle: str) -> str:
     return handle.removeprefix("ccr_").removeprefix("<<ccr:").rstrip(">>")
 
 
-@mcp.tool(name="caveman_compress")
-def caveman_compress(
-    input: str,
-    content_type: str = "",
-    quality: str = "balanced",
-    task_query: str = "",
+def _compress_result_payload(
+    engine: TokenEngine,
+    original: str,
+    compressed: str,
+    *,
+    quality: str,
+    store_ccr: bool = True,
 ) -> dict[str, Any]:
-    """Compress large text. Fail-closed if no savings."""
-    engine = _engine(quality, task_query)
-    tokens_before = engine.count_tokens(input)
-    result = engine.optimize(input, content_type=content_type)
-    compressed = _strip_optimizer_header(result.content)
+    tokens_before = engine.count_tokens(original)
     tokens_after = engine.count_tokens(compressed)
     ratio = (tokens_before - tokens_after) / tokens_before if tokens_before else 0.0
 
@@ -73,9 +72,9 @@ def caveman_compress(
     _session_stats["tokens_before"] += tokens_before
     _session_stats["tokens_after"] += tokens_after
 
-    if ratio <= 0 or len(compressed) >= len(input):
+    if ratio <= 0 or len(compressed) >= len(original):
         return {
-            "compressed": input,
+            "compressed": original,
             "ratio": 0,
             "recovery_handle": None,
             "tokens_before": tokens_before,
@@ -83,7 +82,9 @@ def caveman_compress(
             "basis": "inferred",
         }
 
-    handle = f"ccr_{_ccr.store(input, metadata={'quality': quality})}"
+    handle = None
+    if store_ccr:
+        handle = f"ccr_{_ccr.store(original, metadata={'quality': quality})}"
     return {
         "compressed": compressed,
         "ratio": round(ratio, 4),
@@ -92,6 +93,53 @@ def caveman_compress(
         "tokens_after": tokens_after,
         "basis": "inferred",
     }
+
+
+@mcp.tool(name="token_engine_compress_session")
+def token_engine_compress_session(
+    items_json: str,
+    quality: str = "balanced",
+    task_query: str = "",
+) -> dict[str, Any]:
+    """Compress a multi-item agent session (read-delta, dedup, query-slice, knapsack)."""
+    data = json.loads(items_json)
+    raw_items = data if isinstance(data, list) else data.get("items", [])
+    if not raw_items:
+        return {"error": "No items in payload", "compressed": ""}
+
+    engine = _engine(quality, task_query)
+    result = engine.optimize_context(raw_items)
+    original = json.dumps(raw_items)
+    return {
+        **_compress_result_payload(engine, original, result.content, quality=quality),
+        "items_in": len(raw_items),
+        "items_out": len(result.items or []),
+        "mode": "session",
+    }
+
+
+@mcp.tool(name="caveman_compress")
+def caveman_compress(
+    input: str,
+    content_type: str = "",
+    quality: str = "balanced",
+    task_query: str = "",
+) -> dict[str, Any]:
+    """Compress large text or auto-detect session JSON/messages payloads."""
+    session_items = try_parse_session(input)
+    if session_items and len(session_items) > 1:
+        engine = _engine(quality, task_query)
+        result = engine.optimize_context(session_items)
+        return {
+            **_compress_result_payload(engine, input, result.content, quality=quality),
+            "mode": "session_auto",
+            "items": len(session_items),
+        }
+
+    engine = _engine(quality, task_query)
+    result = engine.optimize(input, content_type=content_type)
+    compressed = _strip_optimizer_header(result.content)
+    return _compress_result_payload(engine, input, compressed, quality=quality)
 
 
 @mcp.tool(name="caveman_retrieve")
@@ -152,14 +200,25 @@ def token_engine_compact_tools(
     tools = data if isinstance(data, list) else data.get("tools", [])
     engine = _engine()
 
-    if mode.lower() == "lazy":
-        catalog, session_id, stats = engine.lazy_tool_catalog(tools, level=level)
-        return {"catalog": catalog, "session_id": session_id, "stats": stats}
+    tool_count = len(tools)
+    use_lazy = mode.lower() == "lazy" or (
+        mode.lower() == "compact" and tool_count >= engine.config.lazy_schema_min_tools
+    )
+    if use_lazy:
+        adaptive_level = level
+        if tool_count >= 100:
+            adaptive_level = "ultra"
+        elif tool_count >= 50:
+            adaptive_level = "high"
+        catalog, session_id, stats = engine.lazy_tool_catalog(tools, level=adaptive_level)
+        _lazy_sessions[session_id] = adaptive_level
+        stats["auto_lazy"] = mode.lower() != "lazy"
+        return {"catalog": catalog, "session_id": session_id, "stats": stats, "mode": "lazy"}
 
     compacted, stats = engine.compact_tool_schemas(tools)
-    if len(tools) >= engine.config.lazy_schema_min_tools and stats.get("ratio", 0) < 0.5:
+    if tool_count >= engine.config.lazy_schema_min_tools and stats.get("ratio", 0) < 0.5:
         stats["hint"] = (
-            f"{len(tools)} tools — retry mode=lazy level={level} for on-demand schemas"
+            f"{tool_count} tools — retry mode=lazy level={level} for on-demand schemas"
         )
     return {"tools": compacted, "stats": stats}
 

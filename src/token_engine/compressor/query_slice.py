@@ -38,10 +38,17 @@ def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple
     threshold = max(1, max_score // 2)
 
     parts: list[str] = []
-    if imports:
-        parts.extend(imports)
-
     changed = False
+    if imports:
+        if len(imports) > 3:
+            collapsed_imports = ", ".join(
+                re.sub(r"^(import|from)\s+", "", line.strip()) for line in imports[:8]
+            )
+            parts.append(f"import {collapsed_imports}")
+            changed = True
+        else:
+            parts.extend(imports)
+
     for block in blocks:
         if block.kind == "class":
             parts.append(block.lines[0])

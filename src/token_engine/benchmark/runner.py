@@ -24,6 +24,7 @@ class BenchmarkResult:
     strategy: str
     quality_checks: dict[str, bool] = field(default_factory=dict)
     quality_score: float = 0.0
+    category: str = "other"
 
 
 class BenchmarkRunner:
@@ -79,6 +80,7 @@ class BenchmarkRunner:
             strategy=stats.strategy if stats else "unknown",
             quality_checks=quality_checks,
             quality_score=sum(quality_checks.values()) / max(len(quality_checks), 1),
+            category=self._fixture_category(name, path),
         )
 
     def run_text_fixture(self, path: Path) -> BenchmarkResult:
@@ -104,6 +106,7 @@ class BenchmarkRunner:
             strategy=stats.strategy if stats else "unknown",
             quality_checks=quality_checks,
             quality_score=sum(quality_checks.values()) / max(len(quality_checks), 1),
+            category=self._fixture_category(path.stem, path),
         )
 
     @staticmethod
@@ -125,7 +128,29 @@ class BenchmarkRunner:
             normalized_out = re.sub(r"\s+", "", optimized)
             checks[f"preserve:{term[:30]}"] = term in optimized or normalized_term in normalized_out
 
+        for pattern in fixture.get("must_match", []):
+            checks[f"match:{pattern[:30]}"] = bool(re.search(pattern, optimized))
+
         return checks
+
+    @staticmethod
+    def _fixture_category(name: str, path: Path) -> str:
+        if path.suffix == ".json":
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if cat := data.get("category"):
+                    return cat
+                if "items" in data:
+                    return "session"
+                return "blob"
+            except json.JSONDecodeError:
+                return "blob"
+        stem = path.stem
+        if stem in {"app_log"}:
+            return "log"
+        if stem in {"large_json", "metrics_timeseries"} or "json" in stem:
+            return "json"
+        return "tool_output"
 
     def print_report(self, results: list[BenchmarkResult]) -> None:
         if not results:
@@ -157,6 +182,24 @@ class BenchmarkRunner:
         print(f"{'TOTAL':<25} {total_orig:>10,} {total_opt:>10,} {total_saved:>10,} {ratio * 100:>7.1f}%")
         print("=" * 72)
 
+        categories: dict[str, list[BenchmarkResult]] = {}
+        for r in results:
+            cat = getattr(r, "category", "other")
+            categories.setdefault(cat, []).append(r)
+        if len(categories) > 1:
+            print("\nBY CATEGORY:")
+            for cat, cat_results in sorted(categories.items()):
+                co = sum(x.original_tokens for x in cat_results)
+                cs = sum(x.tokens_saved for x in cat_results)
+                cr = cs / co if co else 0
+                print(f"  {cat:<12} {cr * 100:5.1f}%  ({len(cat_results)} fixtures)")
+
+        heavy = sorted(results, key=lambda r: r.optimized_tokens, reverse=True)[:5]
+        if heavy:
+            print("\nTOP TOKEN CONSUMERS (post-optimize):")
+            for r in heavy:
+                print(f"  {r.name:<22} {r.optimized_tokens:>6,} tok  ({r.compression_ratio * 100:.1f}% saved)")
+
     def check_baseline(self, results: list[BenchmarkResult], baseline_path: Path) -> list[str]:
         """Return list of regression messages; empty if all thresholds met."""
         if not baseline_path.exists():
@@ -185,6 +228,22 @@ class BenchmarkRunner:
                 )
 
         fixture_floor = baseline.get("fixtures", {})
+        category_floor = baseline.get("categories", {})
+        cat_totals: dict[str, tuple[int, int]] = {}
+        for result in results:
+            cat = result.category
+            orig, saved = cat_totals.get(cat, (0, 0))
+            cat_totals[cat] = (orig + result.original_tokens, saved + result.tokens_saved)
+        for cat, (orig, saved) in cat_totals.items():
+            floor = category_floor.get(cat)
+            if floor is None or orig == 0:
+                continue
+            cat_ratio = saved / orig
+            if cat_ratio < floor:
+                failures.append(
+                    f"category {cat}: {cat_ratio * 100:.1f}% below floor {floor * 100:.1f}%"
+                )
+
         for result in results:
             floor = fixture_floor.get(result.name)
             if floor is None:

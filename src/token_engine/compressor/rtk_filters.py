@@ -26,6 +26,10 @@ DETECTORS: list[tuple[str, re.Pattern[str]]] = [
     ("pnpm", re.compile(r"(^Progress: resolved|^Packages: \+|^Done in [\d.]+s|^WARN\s+.*deprecated)", re.M)),
     ("vite", re.compile(r"(^vite v\d|built in [\d.]+s|dist/.*\.(js|css)|error during build)", re.M)),
     ("npm", re.compile(r"(^npm warn |^npm error |added \d+ packages|audited \d+ packages|up to date)", re.M | re.I)),
+    ("tsc", re.compile(r"(error TS\d+|Found \d+ error|\.tsx?\(\d+,\d+\):)", re.M)),
+    ("eslint", re.compile(r"(\d+:\d+\s+error\s+|✖ \d+ problem|ESLint)", re.M)),
+    ("playwright", re.compile(r"(\d+ failed|\d+ passed|Error:|TimeoutError|playwright)", re.M | re.I)),
+    ("gh", re.compile(r"(^gh:|GraphQL:|HTTP 4\d\d|pull request #\d+)", re.M)),
 ]
 
 
@@ -449,6 +453,60 @@ def _compress_vite(text: str, aggressiveness: float) -> CompressResult:
     return _finish(text, "\n".join(parts), "vite")
 
 
+def _compress_tsc(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"error TS\d+|Found \d+ error", l)]
+    details = [l for l in lines if re.search(r"\.tsx?\(\d+,\d+\):", l)]
+    max_lines = max(5, int(15 * (1 - aggressiveness)))
+    parts = errors[:3]
+    if details:
+        parts.append(f"=== TS ERRORS ({len(details)}) ===")
+        parts.extend(l.strip() for l in details[:max_lines])
+    return _finish(text, "\n".join(parts), "tsc")
+
+
+def _compress_eslint(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"error|✖ \d+ problem", l, re.I)]
+    max_lines = max(5, int(12 * (1 - aggressiveness)))
+    parts = [l.strip() for l in errors[:max_lines]]
+    if len(errors) > max_lines:
+        parts.append(f"... {len(errors) - max_lines} more eslint issues")
+    return _finish(text, "\n".join(parts), "eslint")
+
+
+def _compress_gh(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    errors = [l for l in lines if re.search(r"error|GraphQL:|HTTP 4\d\d", l, re.I)]
+    summary = [l for l in lines if re.search(r"pull request|merged|created|#\\d+", l, re.I)]
+    parts = summary[:5] + [l.strip() for l in errors[:8]]
+    return _finish(text, "\n".join(parts), "gh")
+
+
+def _compress_traceback(text: str, aggressiveness: float) -> CompressResult:
+    lines = text.splitlines()
+    keep: list[str] = []
+    in_tb = False
+    for line in lines:
+        if line.startswith("Traceback"):
+            in_tb = True
+            keep.append(line)
+            continue
+        if in_tb:
+            if line.startswith("  ") or line.startswith("File ") or line.strip().startswith("^"):
+                keep.append(line)
+            elif line.strip() and not line.startswith(" "):
+                keep.append(line)
+                in_tb = False
+            else:
+                keep.append(line)
+        elif re.search(r"Error:|Exception:|SyntaxError:", line):
+            keep.append(line)
+    max_lines = max(8, int(25 * (1 - aggressiveness * 0.5)))
+    out = "\n".join(keep[:max_lines])
+    return _finish(text, out, "traceback")
+
+
 _COMPRESSORS = {
     "docker": _compress_docker,
     "cargo": _compress_cargo,
@@ -467,4 +525,7 @@ _COMPRESSORS = {
     "jest": _compress_jest,
     "pnpm": _compress_pnpm,
     "vite": _compress_vite,
+    "tsc": _compress_tsc,
+    "eslint": _compress_eslint,
+    "gh": _compress_gh,
 }

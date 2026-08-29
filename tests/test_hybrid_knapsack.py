@@ -56,6 +56,7 @@ class TestHybridKnapsack:
             hybrid_knapsack_target_ratio=0.95,
             enable_cache=False,
             enable_ccr=False,
+            enable_cbm_bridge=False,
         )
         engine = TokenEngine(config)
         filler = "lorem ipsum dolor sit amet " * 80
