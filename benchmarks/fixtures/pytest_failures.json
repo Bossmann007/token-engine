@@ -1,0 +1,7 @@
+{
+  "name": "pytest_failures",
+  "content_type": "log",
+  "must_contain": ["FAILED", "AssertionError"],
+  "must_preserve": ["test_delete_user", "AssertionError"],
+  "content": "============================= test session starts ==============================\nplatform linux -- Python 3.12.0\nplugins: pytest-8.0.0\ncollected 847 items\n\ntests/test_auth.py::test_user_login PASSED                              [  1%]\ntests/test_auth.py::test_user_logout PASSED                             [  2%]\ntests/test_api.py::test_create_user PASSED                              [  3%]\ntests/test_api.py::test_delete_user FAILED                              [  4%]\ntests/test_db.py::test_connection PASSED                                [  5%]\ntests/test_db.py::test_migration PASSED                                 [  6%]\n... (800 more lines of PASSED tests omitted for brevity in fixture) ...\n\n=================================== FAILURES ===================================\n______________________________ test_delete_user _______________________________\n\n    def test_delete_user():\n        user = create_user(\"test@example.com\")\n        result = delete_user(user.id)\n>       assert result.status == \"deleted\"\nE       AssertionError: assert 'not_found' == 'deleted'\nE         - deleted\nE         + not_found\n\ntests/test_api.py:45: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_api.py::test_delete_user - AssertionError: assert 'not_found' == 'deleted'\n1 failed, 846 passed in 45.23s\n"
+}

@@ -1,0 +1,34 @@
+2024-06-15T10:23:01 INFO  Starting application server on port 8080
+2024-06-15T10:23:01 INFO  Loading configuration from /etc/app/config.yaml
+2024-06-15T10:23:02 INFO  Database connection pool initialized (size=10)
+2024-06-15T10:23:02 INFO  Redis cache connected at redis://localhost:6379
+2024-06-15T10:23:02 INFO  Registered 47 API routes
+2024-06-15T10:23:03 INFO  Health check endpoint ready at /health
+2024-06-15T10:23:05 INFO  Processing request GET /api/users
+2024-06-15T10:23:05 INFO  Processing request GET /api/users/123
+2024-06-15T10:23:06 INFO  Processing request POST /api/auth/login
+2024-06-15T10:23:06 WARN  Rate limit approaching for IP 192.168.1.100 (95/100)
+2024-06-15T10:23:07 INFO  Processing request GET /api/products
+2024-06-15T10:23:08 INFO  Cache hit for key user:123:profile
+2024-06-15T10:23:08 INFO  Cache miss for key product:456:details
+2024-06-15T10:23:09 ERROR Failed to connect to payment gateway: Connection refused
+2024-06-15T10:23:09 ERROR Payment processing failed for order #78901
+Traceback (most recent call last):
+  File "/app/services/payment.py", line 142, in process_payment
+    response = gateway.charge(amount, token)
+  File "/app/integrations/stripe.py", line 89, in charge
+    raise ConnectionError("Connection refused")
+ConnectionError: Connection refused
+2024-06-15T10:23:10 WARN  Retrying payment for order #78901 (attempt 1/3)
+2024-06-15T10:23:11 INFO  Processing request GET /api/orders
+2024-06-15T10:23:12 DEBUG SQL query: SELECT * FROM orders WHERE user_id = 123 LIMIT 50
+2024-06-15T10:23:12 DEBUG Query executed in 12ms
+2024-06-15T10:23:13 INFO  Processing request PUT /api/users/123
+2024-06-15T10:23:14 INFO  User 123 profile updated successfully
+2024-06-15T10:23:15 DEBUG Background job: sending email notifications (queue size: 3)
+2024-06-15T10:23:16 INFO  Email sent to user@example.com (template: welcome)
+2024-06-15T10:23:17 INFO  Processing request DELETE /api/sessions/abc123
+2024-06-15T10:23:18 ERROR Database query timeout after 30000ms
+2024-06-15T10:23:18 ERROR Session cleanup failed: QueryTimeout
+2024-06-15T10:23:19 INFO  Processing request GET /api/health
+2024-06-15T10:23:20 INFO  Health check passed (db: ok, redis: ok, queue: ok)
