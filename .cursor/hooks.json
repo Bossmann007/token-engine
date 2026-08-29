@@ -3,12 +3,12 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": ".cursor/hooks/token-engine-session.sh"
+        "command": "python C:/Users/enzo.bossmann/.cursor/hooks/token-engine-session.py"
       }
     ],
     "postToolUse": [
       {
-        "command": ".cursor/hooks/compress-tool-output.py",
+        "command": "python C:/Users/enzo.bossmann/.cursor/hooks/compress-tool-output.py",
         "matcher": "Shell|Read"
       }
     ]

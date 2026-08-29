@@ -10,3 +10,5 @@ venv/
 .mypy_cache/
 .ruff_cache/
 repo-analysis/
+.cursor/state/checkpoint.json
+.cursor/state/failures.jsonl
