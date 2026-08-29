@@ -59,6 +59,6 @@
       "source": "sprint_notes.md"
     }
   ],
-  "must_contain": ["AuthService", "AssertionError", "knapsack budget"],
+  "must_contain": ["AuthService", "AssertionError", "knapsack"],
   "must_preserve": ["special characters", "login"]
 }

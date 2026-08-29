@@ -74,11 +74,21 @@ class EngineConfig(BaseModel):
     cbm_min_lines_session: int = 15
     cbm_min_chars_session: int = 400
     cbm_session_code_threshold: int = 200
+    cbm_collapse_irrelevant: bool = True
 
     # Session / routing
     enable_content_router: bool = True
+    enable_proactive_low_tier_collapse: bool = True
     query_slice_min_chars: int = 200
     query_slice_min_chars_session: int = 80
+
+    # Output headers — skip when savings too small
+    header_min_saved_tokens: int = 15
+    header_min_original_tokens: int = 50
+
+    # Knapsack — small sessions trigger earlier
+    knapsack_small_session_items: int = 8
+    knapsack_small_session_threshold: float = 0.01
 
     # CCR — only attach recovery marker when net savings remain
     ccr_min_token_saved: int = 100

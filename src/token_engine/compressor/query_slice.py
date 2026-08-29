@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 
 IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+")
 CLASS_RE = re.compile(r"^(\s*)class\s+(\w+)")
@@ -13,6 +14,10 @@ BUG_CONTEXT_TERMS = frozenset({"special", "character", "invalid", "encode", "uni
 def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple[str, bool]:
     """Extract imports + query-relevant blocks; elide others to signatures."""
     terms = {t for t in re.split(r"\W+", query.lower()) if len(t) > 2}
+    for segment in re.findall(r"[\w./\\-]+\.(?:py|ts|tsx|js|jsx|go|rs)", query.lower()):
+        stem = PurePosixPath(segment.replace("\\", "/")).stem.lower()
+        if len(stem) > 2:
+            terms.add(stem)
     if not terms or len(code) < min_chars:
         return code, False
 

@@ -33,7 +33,7 @@ class TestLargeAgentSession:
             for it in data["items"]
         ]
         result = engine.optimize_context(items)
-        assert result.stats.compression_ratio >= 0.08
+        assert result.stats.compression_ratio >= 0.15
         assert "UserService" in result.content
         assert "delete_user" in result.content
 

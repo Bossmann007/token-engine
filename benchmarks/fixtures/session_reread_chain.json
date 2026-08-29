@@ -1,0 +1,33 @@
+{
+  "name": "session_reread_chain",
+  "category": "session",
+  "items": [
+    {
+      "id": "user_task",
+      "content": "Update cache TTL in src/cache/redis.py",
+      "content_type": "message",
+      "source": "user"
+    },
+    {
+      "id": "read_v1",
+      "content": "import redis\n\nclass Cache:\n    def __init__(self, url: str, ttl: int = 3600):\n        self.client = redis.from_url(url)\n        self.ttl = ttl\n\n    def get(self, key: str):\n        return self.client.get(key)\n\n    def set(self, key: str, value: str):\n        self.client.setex(key, self.ttl, value)\n",
+      "content_type": "code",
+      "source": "src/cache/redis.py"
+    },
+    {
+      "id": "read_v2",
+      "content": "import redis\n\nclass Cache:\n    def __init__(self, url: str, ttl: int = 7200):\n        self.client = redis.from_url(url)\n        self.ttl = ttl\n\n    def get(self, key: str):\n        return self.client.get(key)\n\n    def set(self, key: str, value: str):\n        self.client.setex(key, self.ttl, value)\n",
+      "content_type": "code",
+      "source": "src/cache/redis.py"
+    },
+    {
+      "id": "read_v3",
+      "content": "import redis\n\nclass Cache:\n    def __init__(self, url: str, ttl: int = 7200):\n        self.client = redis.from_url(url)\n        self.ttl = ttl\n\n    def get(self, key: str):\n        return self.client.get(key)\n\n    def set(self, key: str, value: str):\n        self.client.setex(key, self.ttl, value)\n\n    def invalidate(self, key: str):\n        self.client.delete(key)\n",
+      "content_type": "code",
+      "source": "src/cache/redis.py"
+    }
+  ],
+  "must_contain": ["Cache", "ttl", "invalidate"],
+  "must_preserve": ["invalidate"],
+  "must_match": ["redis"]
+}

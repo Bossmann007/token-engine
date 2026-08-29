@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/token-engine-session.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": ".cursor/hooks/compress-tool-output.py",
+        "matcher": "Shell|Read"
+      }
+    ]
+  }
+}

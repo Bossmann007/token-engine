@@ -238,6 +238,26 @@ def benchmark_cmd(
     results = runner.run_all(fixtures_dir)
     runner.print_report(results)
 
+    if baseline_path.exists():
+        ref = json.loads(baseline_path.read_text(encoding="utf-8")).get("reference_total_ratio")
+        if ref is not None:
+            total_orig = sum(r.original_tokens for r in results)
+            total_saved = sum(r.tokens_saved for r in results)
+            ratio = total_saved / total_orig if total_orig else 0.0
+            gap = (ref - ratio) * 100
+            click.echo(
+                f"\nTarget reference: {ref * 100:.0f}% | current {ratio * 100:.1f}% | gap {gap:+.1f}pp"
+            )
+            session_ref = json.loads(baseline_path.read_text(encoding="utf-8")).get("reference_session_ratio")
+            if session_ref is not None:
+                session_results = [r for r in results if r.category == "session"]
+                so = sum(r.original_tokens for r in session_results)
+                ss = sum(r.tokens_saved for r in session_results)
+                sr = ss / so if so else 0.0
+                click.echo(
+                    f"Session reference: {session_ref * 100:.0f}% | current {sr * 100:.1f}% | gap {(session_ref - sr) * 100:+.1f}pp"
+                )
+
     if check_baseline:
         failures = runner.check_baseline(results, baseline_path)
         if failures:

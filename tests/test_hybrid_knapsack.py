@@ -21,8 +21,7 @@ class TestKnapsackStub:
         stub = knapsack_stub(item)
         assert stub.id == "old_notes"
         assert stub.metadata["knapsack_dropped"] is True
-        assert "DISCARDABLE" in stub.content
-        assert "knapsack budget" in stub.content
+        assert "knapsack" in stub.content
 
 
 class TestHybridKnapsack:
@@ -51,6 +50,7 @@ class TestHybridKnapsack:
         config = EngineConfig(
             live_zone_mode=True,
             enable_hybrid_knapsack=True,
+            enable_proactive_low_tier_collapse=False,
             target_tokens=180,
             knapsack_budget_threshold=0.8,
             hybrid_knapsack_target_ratio=0.95,
@@ -108,7 +108,7 @@ class TestHybridKnapsack:
         ]
         result = engine.optimize_context(items)
         assert result.metadata.get("knapsack_dropped", 0) >= 1
-        assert "knapsack budget" in result.content
+        assert "knapsack" in result.content
         assert "AuthService" in result.content or "login" in result.content
         assert len(result.items) == len(items)
 
@@ -127,4 +127,4 @@ class TestHybridKnapsack:
         ]
         result = engine.optimize_context(items)
         assert result.metadata.get("knapsack_dropped", 0) == 0
-        assert "knapsack budget" not in result.content
+        assert "knapsack" not in result.content

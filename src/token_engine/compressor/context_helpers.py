@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from token_engine.analyzer.analyzer import TokenAnalyzer
+from token_engine.analyzer.relevance import extract_query_terms, is_file_read_item, path_matches_task
 from token_engine.core.types import ContentItem, ContentType, RelevanceTier
 from token_engine.optimizer.read_lifecycle import _is_file_read
 
@@ -12,10 +13,7 @@ GUTTER_PATTERN = re.compile(r"^(\s*\d+[|:]\s?)(.*)$")
 
 def knapsack_stub(item: ContentItem) -> ContentItem:
     """One-line placeholder when hybrid knapsack drops an item under budget pressure."""
-    stub = (
-        f"[dropped: {item.id} | {item.tier.value} | "
-        f"{item.token_count}tok — knapsack budget; use ccr_retrieve if needed]"
-    )
+    stub = f"[dropped:{item.id}|{item.token_count}tok|knapsack]"
     return ContentItem(
         id=item.id,
         content=stub,
@@ -116,6 +114,45 @@ def collapse_duplicate_items(items: list[ContentItem], pairs: list[tuple[str, st
         dup.metadata["is_duplicate"] = True
         collapsed += 1
 
+    return collapsed
+
+
+def collapse_low_relevance_reads(
+    items: list[ContentItem],
+    *,
+    task_query: str = "",
+    bm25_scores: dict[str, float] | None = None,
+) -> int:
+    """Proactively stub unrelated file reads (no knapsack budget required)."""
+    if not task_query:
+        return 0
+    query_terms, symbol_terms, query_lower = extract_query_terms(task_query)
+    collapsed = 0
+    for item in items:
+        if item.metadata.get("cbm_collapsed") or item.metadata.get("read_delta"):
+            continue
+        if item.tier not in (RelevanceTier.LOW, RelevanceTier.DISCARDABLE):
+            bm25 = (bm25_scores or {}).get(item.id, 0.5)
+            if item.tier != RelevanceTier.MEDIUM or bm25 >= 0.08 or not is_file_read_item(item):
+                continue
+        path = (item.source or item.metadata.get("path", "")).strip()
+        if not path or not is_file_read_item(item):
+            continue
+        if path_matches_task(path, query_lower, query_terms, symbol_terms):
+            continue
+        if TokenAnalyzer.CRITICAL_KEYWORDS.search(item.content):
+            continue
+        lines = item.content.count("\n") + 1 if item.content else 0
+        candidate = (
+            f"[irrelevant read: {path}, {lines}L — not task-related; "
+            f"use search_graph/get_code_snippet if needed]"
+        )
+        if len(candidate) >= len(item.content):
+            candidate = f"[omit:{path}|{lines}L]"
+        item.content = candidate
+        item.metadata["low_relevance_stub"] = True
+        item.tier = RelevanceTier.LOW
+        collapsed += 1
     return collapsed
 
 

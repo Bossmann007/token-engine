@@ -200,6 +200,15 @@ class BenchmarkRunner:
             for r in heavy:
                 print(f"  {r.name:<22} {r.optimized_tokens:>6,} tok  ({r.compression_ratio * 100:.1f}% saved)")
 
+        weak = sorted(
+            [r for r in results if r.compression_ratio < 0.35 and r.original_tokens > 80],
+            key=lambda r: r.compression_ratio,
+        )[:5]
+        if weak:
+            print("\nRESIST COMPRESSION (ratio <35%, >80 tok):")
+            for r in weak:
+                print(f"  {r.name:<22} {r.compression_ratio * 100:>5.1f}%  ({r.original_tokens}→{r.optimized_tokens} tok)")
+
     def check_baseline(self, results: list[BenchmarkResult], baseline_path: Path) -> list[str]:
         """Return list of regression messages; empty if all thresholds met."""
         if not baseline_path.exists():

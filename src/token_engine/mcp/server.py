@@ -31,6 +31,7 @@ _session_stats = {
     "tokens_after": 0,
     "retrievals": 0,
 }
+_feedback_resist: dict[str, dict[str, float | int]] = {}
 
 
 def _engine(quality: str = "balanced", task_query: str = "") -> TokenEngine:
@@ -82,6 +83,15 @@ def _compress_result_payload(
             "basis": "inferred",
         }
 
+    _feedback_resist.setdefault("mcp", {"attempts": 0, "successes": 0, "avg_ratio": 0.0})
+    entry = _feedback_resist["mcp"]
+    entry["attempts"] = int(entry["attempts"]) + 1
+    if ratio > 0:
+        entry["successes"] = int(entry["successes"]) + 1
+        prev = float(entry.get("avg_ratio", 0))
+        n = int(entry["successes"])
+        entry["avg_ratio"] = prev + (ratio - prev) / n
+
     handle = None
     if store_ccr:
         handle = f"ccr_{_ccr.store(original, metadata={'quality': quality})}"
@@ -107,15 +117,22 @@ def token_engine_compress_session(
     if not raw_items:
         return {"error": "No items in payload", "compressed": ""}
 
+    warning = None
+    if not task_query.strip():
+        warning = "task_query empty — path relevance and query-slice disabled; pass current user goal"
+
     engine = _engine(quality, task_query)
     result = engine.optimize_context(raw_items)
     original = json.dumps(raw_items)
-    return {
+    payload = {
         **_compress_result_payload(engine, original, result.content, quality=quality),
         "items_in": len(raw_items),
         "items_out": len(result.items or []),
         "mode": "session",
     }
+    if warning:
+        payload["warning"] = warning
+    return payload
 
 
 @mcp.tool(name="caveman_compress")
@@ -130,11 +147,14 @@ def caveman_compress(
     if session_items and len(session_items) > 1:
         engine = _engine(quality, task_query)
         result = engine.optimize_context(session_items)
-        return {
+        payload = {
             **_compress_result_payload(engine, input, result.content, quality=quality),
             "mode": "session_auto",
             "items": len(session_items),
         }
+        if not task_query.strip():
+            payload["warning"] = "task_query empty — path relevance and query-slice disabled"
+        return payload
 
     engine = _engine(quality, task_query)
     result = engine.optimize(input, content_type=content_type)
@@ -160,6 +180,11 @@ def caveman_stats() -> dict[str, Any]:
     before = _session_stats["tokens_before"]
     after = _session_stats["tokens_after"]
     ratio = (before - after) / before if before else 0.0
+    resist = [
+        {"source": src, **stats}
+        for src, stats in _feedback_resist.items()
+        if stats.get("avg_ratio", 0) < 0.15 and stats.get("attempts", 0) >= 2
+    ]
     return {
         "compress_calls": _session_stats["compress_calls"],
         "tokens_before": before,
@@ -167,6 +192,7 @@ def caveman_stats() -> dict[str, Any]:
         "tokens_saved": max(0, before - after),
         "ratio": round(ratio, 4),
         "retrievals": _session_stats["retrievals"],
+        "resist_compression": sorted(resist, key=lambda x: x.get("avg_ratio", 0))[:10],
         "basis": "inferred",
         "scope": "session",
     }

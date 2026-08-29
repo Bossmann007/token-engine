@@ -12,6 +12,13 @@ from token_engine.core.types import (
     RelevanceTier,
     TokenMetrics,
 )
+from token_engine.analyzer.relevance import (
+    content_overlap_ratio,
+    extract_query_terms,
+    is_file_read_item,
+    path_matches_task,
+    score_path_relevance,
+)
 from token_engine.compressor.detect import detect_content_type
 from token_engine.compressor.deduplicator import Deduplicator
 from token_engine.tokenizer.base import Tokenizer
@@ -112,15 +119,32 @@ class TokenAnalyzer:
         if meta.get("content_role") in ("system", "instruction", "api_contract"):
             return RelevanceTier.CRITICAL
 
-        # Task query relevance (simple BM25-like term overlap)
+        # Task query relevance (path + symbol + content overlap)
         if task_query:
-            query_terms = set(task_query.lower().split())
-            content_terms = set(content.lower().split())
-            overlap = len(query_terms & content_terms) / max(len(query_terms), 1)
+            query_terms, symbol_terms, query_lower = extract_query_terms(task_query)
+            path = (item.source or item.metadata.get("path", "")).strip()
+            path_score = score_path_relevance(item, task_query)
+
+            if path_score is not None:
+                if path_score >= 1.0:
+                    return RelevanceTier.HIGH
+                if path_score == 0.0:
+                    return RelevanceTier.LOW
+
+            overlap = content_overlap_ratio(content, query_terms)
+            if path and is_file_read_item(item):
+                if path_matches_task(path, query_lower, query_terms, symbol_terms):
+                    return RelevanceTier.HIGH if overlap > 0.1 else RelevanceTier.MEDIUM
+                if overlap < 0.05:
+                    return RelevanceTier.LOW
+
             if overlap > 0.5:
                 return RelevanceTier.HIGH
             if overlap > 0.2:
                 return RelevanceTier.MEDIUM
+            if overlap < 0.05 and item.content_type in (ContentType.CODE, ContentType.TEXT):
+                if meta.get("content_role") not in ("system", "instruction", "user"):
+                    return RelevanceTier.LOW
 
         # Recency boost
         if meta.get("recency_score", 0) > 0.8:

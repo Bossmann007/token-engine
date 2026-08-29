@@ -15,6 +15,7 @@ from token_engine.compressor.code_compressor import CodeCompressor
 from token_engine.compressor.context_helpers import (
     collapse_duplicate_items,
     collapse_grep_into_reads,
+    collapse_low_relevance_reads,
     collapse_obsolete_items,
     collapse_stale_reads,
     collapse_superseded_reads,
@@ -119,6 +120,7 @@ class ContextOptimizer:
                 session_min_lines=self._config.cbm_min_lines_session,
                 session_min_chars=self._config.cbm_min_chars_session,
                 session_code_threshold=self._config.cbm_session_code_threshold,
+                collapse_irrelevant=self._config.cbm_collapse_irrelevant,
             )
             for item in items:
                 if item.metadata.get("cbm_collapsed"):
@@ -170,6 +172,8 @@ class ContextOptimizer:
             collapse_duplicate_items(items, analysis.duplicates)
 
         collapse_obsolete_items(items)
+        if self._config.enable_proactive_low_tier_collapse:
+            collapse_low_relevance_reads(items, task_query=task_query, bm25_scores=bm25_scores)
         for item in items:
             item.token_count = self._tokenizer.count(item.content)
 
@@ -380,10 +384,17 @@ class ContextOptimizer:
         if len(items) >= self._config.knapsack_large_session_items:
             threshold_ratio = self._config.knapsack_large_session_threshold
         threshold = int(budget * threshold_ratio)
-        if total <= threshold:
+        small_session = (
+            len(items) >= self._config.knapsack_small_session_items
+            and total >= int(budget * self._config.knapsack_small_session_threshold)
+        )
+        if total <= threshold and not small_session:
             return items
 
-        target = int(budget * self._config.hybrid_knapsack_target_ratio)
+        if small_session and total <= threshold:
+            target = int(total * 0.72)
+        else:
+            target = int(budget * self._config.hybrid_knapsack_target_ratio)
         kept = self._filter.select_items(
             items,
             max_tokens=self._config.max_tokens,
@@ -466,11 +477,18 @@ class ContextOptimizer:
         return agg
 
     def _format_output_item(self, item: ContentItem, *, original_tokens: int | None = None) -> str:
+        if item.metadata.get("low_relevance_stub"):
+            return item.content
+        if item.content_type == ContentType.MESSAGE and (item.source in ("user", "system") or item.metadata.get("content_role") in ("user", "system", "instruction")):
+            return item.content
+
+        saved = (original_tokens or 0) - item.token_count
         header = item.id
         if (
             self._config.show_token_savings_in_headers
             and original_tokens
-            and original_tokens > item.token_count
+            and saved >= self._config.header_min_saved_tokens
+            and original_tokens >= self._config.header_min_original_tokens
         ):
             header = f"{item.id}|{original_tokens}→{item.token_count}tok"
         if self._config.compact_output_headers:
@@ -497,6 +515,8 @@ class ContextOptimizer:
             or stripped.startswith("[unchanged:")
             or stripped.startswith("[first read:")
             or stripped.startswith("[DELTA ")
+            or stripped.startswith("[irrelevant read:")
+            or stripped.startswith("[obsolete note:")
             or stripped.startswith("[stale read:")
         ):
             return True

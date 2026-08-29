@@ -1,0 +1,40 @@
+{
+  "name": "session_unrelated_reads",
+  "category": "session",
+  "items": [
+    {
+      "id": "user_task",
+      "content": "Fix payment webhook in src/billing/webhook.py — signature validation fails on Stripe events.",
+      "content_type": "message",
+      "source": "user"
+    },
+    {
+      "id": "file_webhook",
+      "content": "import hmac\nimport hashlib\n\nclass WebhookHandler:\n    def verify(self, payload: bytes, sig: str, secret: str) -> bool:\n        expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()\n        return hmac.compare_digest(expected, sig)\n\n    def handle(self, event: dict) -> None:\n        if event.get('type') == 'payment_intent.succeeded':\n            self.process_payment(event)\n",
+      "content_type": "code",
+      "source": "src/billing/webhook.py"
+    },
+    {
+      "id": "file_ui",
+      "content": "export function Button({ label }) {\n  return <button className=\"btn\">{label}</button>;\n}\n\nexport function Modal({ open, children }) {\n  if (!open) return null;\n  return <div className=\"modal\">{children}</div>;\n}\n",
+      "content_type": "code",
+      "source": "src/components/ui.tsx"
+    },
+    {
+      "id": "file_legacy",
+      "content": "def old_helper():\n    return 'deprecated'\n\ndef another_helper():\n    return 42\n",
+      "content_type": "code",
+      "source": "src/legacy/helpers.py"
+    },
+    {
+      "id": "stripe_log",
+      "content": "ERROR webhook signature mismatch\nERROR expected sig abc123 got def456\nINFO retried 3 times",
+      "content_type": "log",
+      "source": "stripe.log",
+      "metadata": {"is_error": true}
+    }
+  ],
+  "must_contain": ["WebhookHandler", "verify", "signature"],
+  "must_preserve": ["payment_intent", "mismatch"],
+  "must_match": ["webhook"]
+}

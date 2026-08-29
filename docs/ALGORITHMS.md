@@ -27,8 +27,8 @@
 |------|-----------|---------|
 | [kompact](https://github.com/npow/kompact) | TF-IDF proxy pipeline, TOON encoding | Patterns only |
 | [SuperCompress](https://github.com/Supercompress/Supercompress) | Query-aware block scoring | Query param in SmartCrusher |
-| [TokenDamper](https://github.com/Epichlo/TokenDamper) | Knapsack planning, Myers diff | Phase 2 |
-| [slimctx](https://github.com/omkar9854/token_optimizer) | Log template mining, reversible transforms | Phase 2 |
+| [TokenDamper](https://github.com/Epichlo/TokenDamper) | Knapsack planning, Myers diff | **Yes** (v0.4) |
+| [slimctx](https://github.com/omkar9854/token_optimizer) | Log template mining, reversible transforms | **Yes** (v0.4) |
 | [mcp-compressor](https://github.com/atlassian-labs/mcp-compressor) | On-demand tool schema lookup | Inspiration for compaction |
 | [mcp-sophon](https://github.com/lacausecrypto/mcp-sophon) | Deterministic Rust compressors | Reference architecture |
 | [context-compress](https://github.com/Open330/context-compress) | Index-backed search + wrap CLI | Complementary upstream |
@@ -46,9 +46,10 @@
 | Structural code graph | codebase-memory-mcp | 9 | 10 | 9 | **Yes** (CBM bridge) |
 | Compact tree output | codebase-memory-mcp | 8 | 8 | 10 | Pattern adopted |
 | Behavioral output reduction | ponytail | 7 | 6 | 10 | **No** (skill layer) |
-| Knapsack token budgeting | TokenDamper | 8 | 8 | 7 | Phase 2 |
-| Log template mining | slimctx | 8 | 9 | 9 | Phase 2 |
-| MCP on-demand schemas | mcp-compressor | 8 | 9 | 8 | Partial (compaction) |
+| Knapsack token budgeting | TokenDamper | 8 | 8 | 7 | **Yes** (v0.4) |
+| Log template mining | slimctx | 8 | 9 | 9 | **Yes** (v0.4) |
+| Path-aware session relevance | token-engine | 9 | 8 | 10 | **Yes** (v0.4) |
+| MCP on-demand schemas | mcp-compressor | 8 | 9 | 8 | **Yes** (lazy auto) |
 | Proxy intercept | kompact / headroom | 8 | 9 | 7 | **No** (library only) |
 | RTK bash filters (docker/cargo/k8s/pip/go) | rtk | 8 | 9 | 9 | **Yes** (v0.3) |
 | ML compression (Kompress) | headroom | 7 | 8 | 4 | **No** (defer) |
