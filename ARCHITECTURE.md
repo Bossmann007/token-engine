@@ -2,7 +2,7 @@
 
 ## Overview
 
-Token Engine is a modular, provider-agnostic library designed for integration into AI Harnesses. It separates **core logic** from **provider adapters** and uses a plugin registry for extensibility.
+Token Engine is a modular, encoding-agnostic library designed for integration into AI Harnesses. It separates **core logic** from **tokenizer backends** and uses a plugin registry for extensibility.
 
 ## Modules
 

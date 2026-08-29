@@ -79,7 +79,7 @@
 
 ### Live-Zone Mode (`config.live_zone_mode`)
 - Compress all items, never drop messages
-- Preserves provider cache prefix stability
+- Preserves prompt cache prefix stability
 - Inspired by headroom live-zone architecture
 
 ## Rejected (unchanged + new)

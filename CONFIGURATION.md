@@ -25,7 +25,7 @@ engine = TokenEngine.default()  # full stack enabled
 | Sandbox execute | `enable_sandbox_execute` | true | context-mode |
 | Tool schema compaction | `enable_tool_schema_compaction` | true | mcp-compressor |
 
-Provider default: `anthropic` / `claude-sonnet-4` (Cursor).
+Token counting default: `o200k_base` (modern BPE; override via `encoding`).
 
 ## EngineConfig
 
@@ -33,9 +33,8 @@ Provider default: `anthropic` / `claude-sonnet-4` (Cursor).
 from token_engine import EngineConfig, QualityLevel
 
 config = EngineConfig(
-    # Provider
-    provider="openai",          # openai | anthropic | google | local
-    model="gpt-4o",
+    # Token counting (tiktoken encoding)
+    encoding="o200k_base",      # or cl100k_base for older BPE models
 
     # Token budget
     max_tokens=128000,          # hard ceiling
@@ -84,8 +83,7 @@ config = EngineConfig(
 
 ```json
 {
-  "provider": "anthropic",
-  "model": "claude-3-5-sonnet",
+  "encoding": "o200k_base",
   "quality_level": "balanced",
   "target_tokens": 8000,
   "task_query": "refactor auth module",
@@ -118,16 +116,15 @@ Enhance relevance scoring via item metadata:
 }
 ```
 
-## Provider Adapters
+## Tokenizer
 
-Token counting uses tiktoken encodings mapped per model:
+Token counting uses [tiktoken](https://github.com/openai/tiktoken) encodings directly — no provider or model coupling:
 
-| Provider | Models | Encoding |
-|----------|--------|----------|
-| OpenAI | gpt-4o, o1, o3-mini | o200k_base |
-| OpenAI | gpt-4, gpt-3.5-turbo | cl100k_base |
-| Anthropic | claude-* | cl100k_base (approximate) |
-| Google | gemini-* | cl100k_base (approximate) |
+| Encoding | Typical use |
+|----------|-------------|
+| `o200k_base` | Default; modern multimodal / reasoning models |
+| `cl100k_base` | GPT-4 era and many approximate counts |
+| `p50k_base` / `r50k_base` | Legacy OpenAI models |
 
 For fast hooks without tiktoken overhead, use `create_tokenizer(use_estimate=True)`.
 
@@ -136,5 +133,4 @@ For fast hooks without tiktoken overhead, use `create_tokenizer(use_estimate=Tru
 No required environment variables. Optional:
 
 - `TOKEN_ENGINE_QUALITY` — default quality level
-- `TOKEN_ENGINE_PROVIDER` — default provider
-- `TOKEN_ENGINE_MODEL` — default model
+- `TOKEN_ENGINE_ENCODING` — default tiktoken encoding

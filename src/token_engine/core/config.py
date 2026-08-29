@@ -29,9 +29,8 @@ class EngineConfig(BaseModel):
 
     model_config = {"extra": "ignore"}
 
-    # Provider (Cursor / Anthropic default)
-    provider: str = "anthropic"
-    model: str = "claude-sonnet-4"
+    # Token counting (tiktoken encoding; harness picks the model, not this engine)
+    encoding: str = "o200k_base"
 
     # Token budget
     max_tokens: int | None = 128_000

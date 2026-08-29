@@ -15,7 +15,7 @@ VOLATILE_PATTERNS = [
 
 
 def detect_volatile_content(text: str) -> list[dict[str, str]]:
-    """Return warnings for content that may break provider prompt cache."""
+    """Return warnings for content that may break LLM prompt cache."""
     warnings: list[dict[str, str]] = []
     for pattern, kind in VOLATILE_PATTERNS:
         matches = pattern.findall(text)
@@ -23,6 +23,6 @@ def detect_volatile_content(text: str) -> list[dict[str, str]]:
             warnings.append({
                 "type": kind,
                 "count": str(len(matches)),
-                "hint": f"Volatile {kind} in context may reduce provider cache hit rate",
+                "hint": f"Volatile {kind} in context may reduce prompt cache hit rate",
             })
     return warnings

@@ -17,7 +17,7 @@ class TokenEngine:
 
     def __init__(self, config: EngineConfig | None = None) -> None:
         self.config = config or EngineConfig()
-        self.tokenizer = create_tokenizer(self.config.provider, self.config.model)
+        self.tokenizer = create_tokenizer(self.config.encoding)
         self._optimizer = ContextOptimizer(self.config, self.tokenizer)
 
     def optimize(self, text: str, *, content_type: str = "") -> OptimizationResult:

@@ -23,5 +23,5 @@ class Tokenizer(ABC):
 
     @property
     @abstractmethod
-    def provider(self) -> str:
-        """Provider name (openai, anthropic, etc.)."""
+    def encoding(self) -> str:
+        """Tokenizer encoding identifier (e.g. o200k_base, char-estimate)."""

@@ -85,8 +85,7 @@ config = EngineConfig(
     quality_level=QualityLevel.BALANCED,
     target_tokens=4000,
     task_query="fix auth bug",
-    provider="openai",
-    model="gpt-4o",
+    encoding="o200k_base",
 )
 
 engine = TokenEngine(config)

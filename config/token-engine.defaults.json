@@ -1,6 +1,5 @@
 {
-  "provider": "anthropic",
-  "model": "claude-sonnet-4",
+  "encoding": "o200k_base",
   "quality_level": "balanced",
   "max_tokens": 128000,
   "target_tokens": 32000,
