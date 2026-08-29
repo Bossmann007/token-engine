@@ -15,3 +15,7 @@ class TestDetectRTK:
 
     def test_plain_text_unchanged(self):
         assert detect_content_type("hello world") == ContentType.TEXT
+
+    def test_git_status_is_tool_output(self):
+        text = "On branch main\nChanges not staged for commit:\n  modified: app.py"
+        assert detect_content_type(text) == ContentType.TOOL_OUTPUT

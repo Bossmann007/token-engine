@@ -365,6 +365,13 @@ def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
 
 def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
+    passes = [l for l in lines if l.startswith("PASS ")]
+
+    # Small output: drop PASS lines only — avoid header overhead on tiny fixtures
+    if len(lines) <= 15 and passes:
+        kept = [l for l in lines if not l.startswith("PASS ")]
+        return _finish(text, "\n".join(kept), "jest")
+
     summary = [l for l in lines if re.search(r"Test Suites:|^Tests:|^Snapshots:|^Time:", l)]
     fails = [l for l in lines if l.startswith("FAIL ") or l.strip().startswith("●")]
     errors = [l for l in lines if re.search(r"Expected|Received|at Object\.|^\s+at ", l)]
@@ -378,10 +385,10 @@ def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
     if errors:
         parts.extend(l.strip() for l in errors[:12])
     if passes:
-        if fails or len(passes) > max_pass:
+        if (fails and len(passes) > 3) or (not fails and len(passes) > max_pass):
             parts.append(f"PASS: {len(passes)} suites omitted")
         else:
-            parts.extend(l.strip() for l in passes[:max_pass])
+            parts.extend(l.strip() for l in passes)
 
     return _finish(text, "\n".join(parts), "jest")
 

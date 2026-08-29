@@ -204,7 +204,7 @@ class TestRTKNodeFilters:
         assert "Test Suites:" in result.content
         assert "FAIL src/auth" in result.content
         assert "Expected:" in result.content
-        assert "suites omitted" in result.content
+        assert "suites omitted" in result.content or "PASS src/" in result.content
 
     def test_pnpm(self):
         assert rtk_filters.detect_rtk_tool(PNPM_LOG) == "pnpm"
@@ -225,6 +225,20 @@ class TestRTKNodeFilters:
         result = comp.compress(JEST_LOG, aggressiveness=0.5)
         assert result.compressed
         assert result.strategy == "rtk:jest"
+
+    def test_jest_small_fixture(self):
+        small = "\n".join([
+            "PASS src/a.test.ts",
+            "PASS src/b.test.ts",
+            "FAIL src/c.test.ts",
+            "  ● test",
+            "Test Suites: 1 failed, 2 passed, 3 total",
+        ])
+        result = rtk_filters.compress_rtk_tool(small, "jest", aggressiveness=0.5)
+        assert result.compressed
+        assert "PASS" not in result.content
+        assert "FAIL src/c" in result.content
+        assert "===" not in result.content
 
 
 class TestCBMBridge:

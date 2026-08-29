@@ -175,7 +175,7 @@ class TestCrossTurnDedup:
         result = engine.optimize_context(items)
         assert result.stats.tokens_saved > 0
         assert "[read_2]" in result.content
-        assert "same as msg" in result.content
+        assert "unchanged:" in result.content or "same as msg" in result.content
 
 
 class TestToolSchemaCompaction:

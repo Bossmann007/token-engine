@@ -20,6 +20,6 @@
       "source": "src/app.py"
     }
   ],
-  "must_contain": ["same as msg", "def main"],
+  "must_contain": ["def main", "grep"],
   "must_preserve": ["import os"]
 }

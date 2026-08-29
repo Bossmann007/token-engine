@@ -34,6 +34,9 @@ def detect_content_type(text: str, hint: str = "") -> ContentType:
     if _rtk and _rtk.detect_rtk_tool(stripped):
         return ContentType.TOOL_OUTPUT
 
+    if re.search(r"^(On branch |Changes not staged|Untracked files:)", stripped, re.MULTILINE):
+        return ContentType.TOOL_OUTPUT
+
     # JSON
     if stripped[0] in "{[":
         try:

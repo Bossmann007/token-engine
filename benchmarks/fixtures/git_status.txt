@@ -1,0 +1,28 @@
+On branch fix/auth-special-chars
+Changes not staged for commit:
+  modified:   src/auth/login.py
+  modified:   tests/test_auth.py
+
+Untracked files:
+  debug.log
+  tmp_output.txt
+  .env.local
+  node_modules/
+  dist/
+  coverage/
+  .pytest_cache/
+  __pycache__/
+  .venv/
+  venv/
+  .idea/
+  .vscode/
+  package-lock.json
+  yarn.lock
+  .DS_Store
+  Thumbs.db
+  *.pyc
+  *.pyo
+  build/
+  *.egg-info/
+  .tox/
+  pip-log.txt

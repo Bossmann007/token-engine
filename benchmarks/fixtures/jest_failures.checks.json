@@ -1,0 +1,4 @@
+{
+  "must_contain": ["FAIL", "Expected"],
+  "must_preserve": ["Test Suites"]
+}

@@ -1,11 +1,21 @@
-Step 1/8 : FROM node:20
+Step 1/12 : FROM node:20
  ---> Using cache
-Step 2/8 : WORKDIR /app
-Step 3/8 : COPY package.json .
-Step 4/8 : RUN npm ci
-Step 5/8 : COPY . .
-Step 6/8 : RUN npm run build
-Step 7/8 : EXPOSE 3000
-Step 8/8 : CMD ["npm", "start"]
-Successfully built abc123def456
+Step 2/12 : WORKDIR /app
+ ---> Using cache
+Step 3/12 : COPY package.json package-lock.json ./
+ ---> Running in abc123def456
+Step 4/12 : RUN npm ci
+ ---> Running in def789abc012
+Step 5/12 : COPY tsconfig.json ./
+Step 6/12 : COPY src ./src
+Step 7/12 : RUN npm run build
+Step 8/12 : RUN npm prune --production
+Step 9/12 : COPY public ./public
+Step 10/12 : EXPOSE 3000
+Step 11/12 : HEALTHCHECK CMD curl -f http://localhost:3000/ || exit 1
+Step 12/12 : CMD ["npm", "start"]
+ ---> Using cache
+ ---> Using cache
+ ---> Using cache
+Successfully built abc123def456789
 Successfully tagged myapp:latest

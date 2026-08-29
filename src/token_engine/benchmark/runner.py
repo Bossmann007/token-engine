@@ -37,6 +37,9 @@ class BenchmarkRunner:
             return results
 
         for path in sorted(fixtures_dir.glob("*.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if "items" not in data and "content" not in data:
+                continue
             results.append(self.run_fixture(path))
         for path in sorted(fixtures_dir.glob("*.txt")):
             results.append(self.run_text_fixture(path))
@@ -82,12 +85,14 @@ class BenchmarkRunner:
         text = path.read_text(encoding="utf-8")
         hint = "tool_output" if path.stem in {
             "npm_install", "jest_failures", "pnpm_install", "vite_build",
-            "docker_build", "cargo_build", "app_log",
+            "docker_build", "cargo_build", "app_log", "git_status",
         } else ""
         start = time.perf_counter()
         result = self.engine.optimize(text, content_type=hint)
         latency = (time.perf_counter() - start) * 1000
         stats = result.stats
+        checks_meta = self._load_checks(path)
+        quality_checks = self._quality_checks(checks_meta, result.content) if checks_meta else {}
 
         return BenchmarkResult(
             name=path.stem,
@@ -97,7 +102,16 @@ class BenchmarkRunner:
             compression_ratio=stats.compression_ratio if stats else 0.0,
             latency_ms=latency,
             strategy=stats.strategy if stats else "unknown",
+            quality_checks=quality_checks,
+            quality_score=sum(quality_checks.values()) / max(len(quality_checks), 1),
         )
+
+    @staticmethod
+    def _load_checks(path: Path) -> dict:
+        checks_path = path.with_name(f"{path.stem}.checks.json")
+        if not checks_path.exists():
+            return {}
+        return json.loads(checks_path.read_text(encoding="utf-8"))
 
     def _quality_checks(self, fixture: dict, optimized: str) -> dict[str, bool]:
         checks: dict[str, bool] = {}

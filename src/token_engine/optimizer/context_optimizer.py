@@ -115,15 +115,7 @@ class ContextOptimizer:
         # Collapse grep hits covered by earlier reads (token-optimizer read-cache)
         collapse_grep_into_reads(items)
 
-        # Cross-turn dedup before read-delta (headroom order)
-        if self._config.enable_cross_turn_dedup and len(items) > 1:
-            blocks = [DedupBlock(text=item.content, turn=i) for i, item in enumerate(items)]
-            deduped_blocks, _ = dedup_blocks(blocks)
-            for item, block in zip(items, deduped_blocks):
-                item.content = block.text
-                item.token_count = self._tokenizer.count(item.content)
-
-        # Read delta on file items (token-optimizer read-cache)
+        # Read delta on file re-reads (before verbatim dedup — Myers diff wins on edits)
         if self._read_delta:
             for item in items:
                 path = item.source or item.metadata.get("path", "")
@@ -133,6 +125,14 @@ class ContextOptimizer:
                         item.content = delta.content
                         item.token_count = self._tokenizer.count(item.content)
                         item.metadata["read_delta"] = delta.strategy
+
+        # Cross-turn dedup on remaining verbatim repeats
+        if self._config.enable_cross_turn_dedup and len(items) > 1:
+            blocks = [DedupBlock(text=item.content, turn=i) for i, item in enumerate(items)]
+            deduped_blocks, _ = dedup_blocks(blocks)
+            for item, block in zip(items, deduped_blocks):
+                item.content = block.text
+                item.token_count = self._tokenizer.count(item.content)
 
         # Stale read pruning
         if self._config.enable_read_lifecycle:

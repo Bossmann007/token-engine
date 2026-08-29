@@ -1,0 +1,4 @@
+{
+  "must_contain": ["login.py", "untracked"],
+  "must_preserve": ["On branch", "fix/auth"]
+}

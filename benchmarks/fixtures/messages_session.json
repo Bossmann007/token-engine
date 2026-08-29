@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a senior software engineer."
+    },
+    {
+      "role": "user",
+      "content": "Fix the authentication bug in src/auth/login.py when password contains special characters."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll read the auth module and pytest output."
+    },
+    {
+      "role": "user",
+      "content": "tests/test_auth.py::test_special_chars FAILED\nE   AssertionError: Expected 200, got 500\n\n1 failed, 42 passed"
+    }
+  ]
+}

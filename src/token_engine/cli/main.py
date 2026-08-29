@@ -119,6 +119,47 @@ def analyze_cmd(path: str, as_json: bool) -> None:
                 click.echo(f"  • {r}")
 
 
+@cli.command("optimize-messages")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")
+@click.option("--task", default="", help="Task query for relevance scoring")
+@click.option("--output", "-o", type=click.Path())
+@click.option("--json", "as_json", is_flag=True, help="Output stats as JSON")
+def optimize_messages_cmd(
+    path: str, quality: str, task: str, output: str | None, as_json: bool
+) -> None:
+    """Optimize a chat messages JSON file for harness/LLM prompts."""
+    from token_engine.harness import HarnessClient
+
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    messages = data if isinstance(data, list) else data.get("messages", [])
+    if not messages:
+        raise click.ClickException("Expected a JSON array or {\"messages\": [...]}")
+
+    client = HarnessClient(
+        config=EngineConfig(quality_level=QualityLevel(quality), task_query=task),
+        prefer_api=False,
+    )
+    result = client.optimize_messages(messages, task_query=task, quality=quality)
+
+    if output:
+        Path(output).write_text(result["content"], encoding="utf-8")
+
+    if as_json:
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    stats = result.get("stats", {})
+    click.echo(f"Original:    {stats.get('original_tokens', 0):>8,} tokens")
+    click.echo(f"Optimized:   {stats.get('optimized_tokens', 0):>8,} tokens")
+    click.echo(f"Saved:       {stats.get('tokens_saved', 0):>8,} tokens")
+    ratio = stats.get("compression_ratio", 0)
+    click.echo(f"Compression: {ratio * 100:>7.1f}%")
+    if not output:
+        click.echo("\n--- Optimized prompt ---\n")
+        click.echo(result["content"])
+
+
 @cli.command("compact-tools")
 @click.argument("path", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path())

@@ -126,9 +126,10 @@ class TokenAnalyzer:
         if meta.get("recency_score", 0) > 0.8:
             return RelevanceTier.HIGH
 
-        # Obsolete content
+        # Obsolete content (not tool/log output — npm "deprecated" warnings etc.)
         if self.OBSOLETE_KEYWORDS.search(content):
-            return RelevanceTier.DISCARDABLE
+            if item.content_type not in (ContentType.TOOL_OUTPUT, ContentType.TERMINAL, ContentType.LOG):
+                return RelevanceTier.DISCARDABLE
 
         # Size-based heuristics for tool outputs
         if item.content_type in (ContentType.LOG, ContentType.TERMINAL) and item.token_count > 3000:

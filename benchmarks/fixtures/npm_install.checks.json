@@ -1,0 +1,4 @@
+{
+  "must_contain": ["added", "audited"],
+  "must_preserve": ["vulnerabilities"]
+}
