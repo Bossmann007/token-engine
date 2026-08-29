@@ -6,7 +6,7 @@ Token Engine analyzes, ranks, and compresses LLM context while preserving critic
 
 ## Cursor Integration
 
-**Ponytail + Caveman + Token Engine** ready for Cursor. See [CURSOR.md](CURSOR.md).
+**Ponytail + Caveman + Token Engine** ready for Cursor. See [docs/CURSOR.md](docs/CURSOR.md).
 
 ```bash
 pip install -e ".[cursor,dev]"
@@ -15,54 +15,27 @@ token-engine cursor-setup
 
 Rules auto-apply from `.cursor/rules/`. MCP server in `.cursor/mcp.json`.
 
-## Install on Windows (`C:\Users\enzo.bossmann`)
+## Install
 
-### Setup pelo Origin (Windows nativo — **sem WSL**)
-
-O Origin tem instalador nativo para PowerShell. Cole no **PowerShell** (não precisa de Ubuntu/WSL):
+### Windows
 
 ```powershell
-# 1) Instalar Origin CLI
-irm https://downloads.cursor.com/origin/install.ps1 | iex
-
-# Feche e reabra o PowerShell, depois:
-origin --version
-origin auth login
-origin auth setup-git --global
-
-# 2) Clonar o projeto
-origin repo clone enzo-bossmann/tmp-b653fd97de4e8e5c C:\Users\enzo.bossmann\token-engine
-
-# 3) Instalar deps
-cd C:\Users\enzo.bossmann\token-engine
+git clone https://github.com/Bossmann007/token-engine.git
+cd token-engine
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 .\scripts\install-windows.ps1 -SkipClone
 ```
 
-Ou tudo de uma vez (depois que `origin` estiver no PATH):
+### Any OS
 
-```powershell
-.\scripts\setup-origin.ps1
+```bash
+git clone https://github.com/Bossmann007/token-engine.git
+cd token-engine
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[cursor,dev]"
+token-engine cursor-setup
 ```
-
-**Login:** `origin auth login` abre o browser → use **enzombromanus@gmail.com**.
-
-**WSL com problema?** Ignore o WSL — use os comandos acima. Só use `.\scripts\setup-origin.ps1 -UseWsl` se preferir Ubuntu.
-
-### WSL não abre? (opcional — só se quiser consertar depois)
-
-```powershell
-# PowerShell como Administrador:
-wsl --shutdown
-wsl --update --web-download
-wsl --install -d Ubuntu
-```
-
-Se falhar: feche Docker Desktop, reinicie o PC, ou `winget uninstall Microsoft.WSL` + `winget install Microsoft.WSL` e reinicie.
-
-### Alternativa — GitHub
-
-`gh auth login` → Create repo no Cursor → sync para GitHub → clone no Cursor.
 
 ## Quick Start
 
@@ -125,7 +98,7 @@ uvicorn token_engine.api.server:app --host 0.0.0.0 --port 8741
                    Optimized Context
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
 ## Inspiration
 
@@ -144,15 +117,16 @@ Built by analyzing **15 open-source projects** (+ 7 discovered via search):
 | [SuperCompress](https://github.com/Supercompress/Supercompress) | Query-aware block scoring |
 | [ponytail](https://github.com/dietrichgebert/ponytail) | Evaluated — behavioral layer, not adopted in engine |
 
-See [ALGORITHMS.md](ALGORITHMS.md) for technique selection rationale.
+See [docs/ALGORITHMS.md](docs/ALGORITHMS.md) for technique selection rationale.
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — system design
-- [ALGORITHMS.md](ALGORITHMS.md) — algorithms and rejected approaches
-- [BENCHMARKS.md](BENCHMARKS.md) — benchmark results
-- [API.md](API.md) — REST API reference
-- [CONFIGURATION.md](CONFIGURATION.md) — config options
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design
+- [docs/ALGORITHMS.md](docs/ALGORITHMS.md) — algorithms and rejected approaches
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — benchmark results
+- [docs/API.md](docs/API.md) — REST API reference
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — config options
+- [docs/CURSOR.md](docs/CURSOR.md) — Cursor + MCP setup
 
 ## License
 

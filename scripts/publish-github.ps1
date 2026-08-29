@@ -1,12 +1,11 @@
-# Publish Token Engine to GitHub (run on your Windows machine after gh auth login)
+# Publish Token Engine to GitHub (run after gh auth login)
 # Usage:
-#   cd C:\Users\enzo.bossmann\token-engine
 #   .\scripts\publish-github.ps1
 
 param(
-    [string]$Repo = "enzo-bossmann/token-engine",
+    [string]$Repo = "Bossmann007/token-engine",
     [ValidateSet("public", "private")]
-    [string]$Visibility = "private"
+    [string]$Visibility = "public"
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +33,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Creating GitHub repo $Repo ($Visibility)..."
     gh repo create $Repo --$Visibility --source=. --remote=github --push
 } else {
-    Write-Host "Repo $Repo exists — pushing main..."
+    Write-Host "Repo $Repo exists - pushing main..."
     if (-not (git remote get-url github 2>$null)) {
         git remote add github "https://github.com/$Repo.git"
     }
@@ -43,5 +42,3 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "Published: https://github.com/$Repo"
-Write-Host "Clone on this machine:"
-Write-Host "  git clone https://github.com/$Repo.git C:\Users\enzo.bossmann\token-engine"
