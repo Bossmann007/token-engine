@@ -35,7 +35,17 @@ MCP tools available to the agent:
 | `caveman_retrieve` | Recover original bytes from `recovery_handle` |
 | `caveman_stats` | Session compression statistics |
 | `token_engine_analyze` | Token analysis + recommendations |
-| `token_engine_compact_tools` | Reduce MCP tool schema bloat |
+| `token_engine_sandbox` | Run Python analysis outside context (context-mode) |
+| `token_engine_compact_tools` | Reduce MCP tool schema bloat (mcp-compressor) |
+
+### MCP stack (default in `.cursor/mcp.json`)
+
+| Server | Role |
+|--------|------|
+| **token-engine** | Compression, sandbox, schema compaction |
+| **codebase-memory** | Structural code graph queries (CBM) |
+
+Optional: wrap bloated MCPs with `mcp-compressor` — see `.cursor/mcp-compressor.example.json`
 
 ## How the behaviors work together
 
