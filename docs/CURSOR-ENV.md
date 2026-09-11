@@ -17,6 +17,8 @@ Phases 1–29 implemented. Full docs: [cursor-kit](https://github.com/Bossmann00
 
 | Topic | Doc |
 |-------|-----|
+| **Onboarding (start here)** | [cursor-kit playbook](https://github.com/Bossmann007/cursor-kit/blob/master/docs/02-playbook-onboarding.md) |
+| Overview / pillars | [cursor-kit/docs/00-overview.md](https://github.com/Bossmann007/cursor-kit/blob/master/docs/00-overview.md) |
 | Architecture | [cursor-kit/docs/ARCHITECTURE.md](https://github.com/Bossmann007/cursor-kit/blob/master/docs/ARCHITECTURE.md) |
 | Memory | [cursor-kit/docs/MEMORY.md](https://github.com/Bossmann007/cursor-kit/blob/master/docs/MEMORY.md) |
 | Project brain | [cursor-kit/docs/PROJECT-BRAIN.md](https://github.com/Bossmann007/cursor-kit/blob/master/docs/PROJECT-BRAIN.md) |
