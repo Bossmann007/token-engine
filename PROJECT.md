@@ -2,8 +2,9 @@
 
 ## Stack
 
-- Python 3.14, FastAPI/uvicorn (API), MCP server
+- Python 3.12+ (venv), FastAPI/uvicorn (API), MCP server
 - tiktoken for counting, pure-Python compressors
+- Pairs with [cursor-kit](https://github.com/Bossmann007/cursor-kit) for Cursor env / `/setup-project`
 
 ## Commands
 

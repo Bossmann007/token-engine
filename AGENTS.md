@@ -3,15 +3,15 @@
 ## Learned User Preferences
 
 - Cursor-only dev environment — Hermes and Claude Code are reference only, not runtime
-- Windows 11 — PowerShell, no Linux/MedOS migration
+- macOS primary (darwin); Windows install script still available
 - Prefer minimal tokens: caveman_stats on demand, no always-on observability dashboards
 - Autonomous execution after architecture OK — avoid re-confirming every step
 - ponytail + caveman rules apply globally to all projects
 
 ## Learned Workspace Facts
 
-- token-engine lives at `C:\Users\enzo.bossmann\token-engine`
+- token-engine lives at `~/token-engine` → `~/.cursor/repos/token-engine`
 - Global MCP: context7, token-engine, codebase-memory, notion (OAuth)
-- cursor-kit template at `C:\Users\enzo.bossmann\cursor-kit` replaces dotagents
+- cursor-kit at `~/cursor-kit` → `~/.cursor/repos/cursor-kit` ([GitHub](https://github.com/Bossmann007/cursor-kit))
 - Skills: mattpocock/skills + find-skills in `~/.cursor/skills/`; book rules in `~/.cursor/rules/books/`
-- PUCPR 2026/2: pucpr-canvas + pucpr-tutor (6 disciplinas alinhadas)
+- Pair with `/setup-project` from cursor-kit for per-repo bootstrap

@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/Bossmann007/token-engine">token-engine</a> ·
+  <a href="https://github.com/Bossmann007/cursor-kit">cursor-kit</a> ·
   <a href="docs/CURSOR-ENV.md">Cursor env</a>
 </p>
 
@@ -19,13 +20,33 @@ Built for **Cursor** + MCP
 
 **Ponytail + Caveman + Token Engine + codebase-memory** — see [docs/CURSOR.md](docs/CURSOR.md) and [docs/CURSOR-ENV.md](docs/CURSOR-ENV.md).
 
+Per-repo bootstrap of the full stack: [`/setup-project`](https://github.com/Bossmann007/cursor-kit) in cursor-kit.
+
 ```bash
 pip install -e ".[cursor,dev]"
 token-engine cursor-setup
 token-engine benchmark --check-baseline
 ```
 
-## Install (Windows)
+## Install
+
+### macOS / Linux
+
+```bash
+git clone https://github.com/Bossmann007/token-engine.git
+cd token-engine
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[cursor,dev]"
+```
+
+Optional symlink used by this machine’s Cursor env:
+
+```bash
+ln -sfn "$PWD" ~/token-engine
+```
+
+### Windows
 
 ```powershell
 git clone https://github.com/Bossmann007/token-engine.git
@@ -75,6 +96,7 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 | [API.md](docs/API.md) | REST endpoints |
 | [CURSOR-ENV.md](docs/CURSOR-ENV.md) | Ultimate Cursor Environment |
 | [BENCHMARKS.md](docs/BENCHMARKS.md) | Baseline gates |
+| [cursor-kit](https://github.com/Bossmann007/cursor-kit) | Templates, hooks, `/setup-project` |
 
 ## License
 

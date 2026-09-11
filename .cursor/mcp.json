@@ -1,9 +1,11 @@
 {
   "mcpServers": {
     "token-engine": {
-      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "command": "${workspaceFolder}/.venv/bin/python",
       "args": ["-m", "token_engine.mcp.server"],
-      "env": {}
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
     },
     "codebase-memory": {
       "command": "npx",
