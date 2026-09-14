@@ -1,3 +1,12 @@
+<!-- ENZO-PORTFOLIO-BRAND -->
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:111111,100:7751FF&height=165&section=header&text=Token%20Engine&fontSize=42&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Context%20optimization%20for%20AI%20agents%20with%20fail-closed%20checks.&descAlignY=57&descSize=14" alt="Token Engine" />
+</p>
+
+<p align="center"><strong>Python · MCP · LLMs</strong></p>
+
+---
+
 # Token Engine
 
 <p align="center">
@@ -101,3 +110,8 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 ## License
 
 MIT
+
+<!-- ENZO-PORTFOLIO-BRAND-FOOTER -->
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:111111,100:7751FF&height=85&section=footer" alt="Footer" />
+</p>
