@@ -90,9 +90,9 @@ Say in chat:
 | bash_compress hook | `caveman_compress` MCP tool |
 | CLAUDE.md rules | `.cursor/rules/*.mdc` |
 | MCP servers | `.cursor/mcp.json` |
-| Skills | `.cursor/rules/` (always-on) |
+| Skills | `.cursor/rules/` (always-on) + user/plugin skills |
 
-No hooks in Cursor — the agent calls MCP tools directly when rules instruct it.
+Cursor **does** support hooks (including third-party `preToolUse` integrations such as [RTK’s Cursor hook](https://github.com/rtk-ai/rtk/tree/master/hooks/cursor)). Token Engine’s default path still uses MCP tools + rules so compression works without installing RTK globally. Optional RTK install/check: `token-engine rtk-check` (see [RTK.md](RTK.md)).
 
 ## Manual MCP test
 

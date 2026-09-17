@@ -68,6 +68,22 @@ class EngineConfig(BaseModel):
     enable_rtk_filters: bool = True
     enable_cbm_bridge: bool = True
 
+    # Optional TypeSafe Jev tool routing (off by default — external API)
+    enable_jev_router: bool = False
+    jev_model: str = "jev-latest"
+    jev_timeout_seconds: float = 5.0
+    jev_max_candidates: int = 8
+    jev_min_confidence_read: float = 0.5
+    jev_min_confidence_write: float = 0.75
+    jev_min_confidence_destructive: float = 1.01  # never auto-allow destructive
+    jev_data_minimization: bool = True
+    jev_redact_secrets: bool = True
+    jev_cache_ttl_seconds: int = 300
+    jev_fallback_mode: str = "bm25"  # bm25 | none
+    jev_max_input_tokens: int = 2000
+    jev_min_catalog_tools: int = 15
+    jev_min_expected_token_savings: int = 200
+
     # Codebase-memory bridge
     cbm_min_lines: int = 35
     cbm_min_chars: int = 800

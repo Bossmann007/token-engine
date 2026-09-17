@@ -29,6 +29,7 @@ dependencies = [
 api = ["fastapi>=0.100.0", "uvicorn>=0.23.0"]
 cursor = ["mcp>=1.0.0"]
 dev = ["pytest>=7.0.0", "httpx>=0.24.0", "mcp>=1.0.0"]
+jev = ["typesafe-sdk>=0.5.7"]
 
 [project.scripts]
 token-engine = "token_engine.cli.main:cli"

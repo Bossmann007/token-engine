@@ -198,6 +198,71 @@ def compact_tools_cmd(path: str, output: str | None, mode: str, level: str) -> N
     click.echo(f"Saved:     {stats.get('saved_chars', 0):,} chars ({stats.get('ratio', 0) * 100:.1f}%)")
 
 
+@cli.command("rtk-check")
+@click.option("--json", "as_json", is_flag=True)
+def rtk_check_cmd(as_json: bool) -> None:
+    """Report Python RTK filters + optional official RTK binary (never auto-installs)."""
+    from token_engine.compressor.rtk_binary import rtk_status
+    from token_engine.compressor import rtk_filters
+
+    status = rtk_status()
+    status["python_detectors"] = len(rtk_filters.DETECTORS)
+    status["python_compressors"] = len(rtk_filters._COMPRESSORS)
+    if as_json:
+        click.echo(json.dumps(status, indent=2))
+        return
+    click.echo(f"Python detectors:   {status['python_detectors']}")
+    click.echo(f"Python compressors: {status['python_compressors']}")
+    click.echo(f"Official RTK binary: {'yes — ' + status['path'] if status['installed'] else 'not found'}")
+    if status.get("version"):
+        click.echo(f"RTK version: {status['version']}")
+    click.echo("\nToken Engine never installs RTK or writes ~/.cursor hooks.")
+    click.echo(f"Optional install: {status['install_hint']}")
+    click.echo(f"Cursor hook docs: {status['cursor_hook']['docs']}")
+
+
+@cli.command("route-tool")
+@click.argument("tools_path", type=click.Path(exists=True))
+@click.option("--intent", required=True, help="Minimized user intent (no secrets)")
+@click.option("--enable-jev", is_flag=True, help="Opt-in Jev (requires TYPESAFE_API_KEY)")
+@click.option("--json", "as_json", is_flag=True)
+def route_tool_cmd(tools_path: str, intent: str, enable_jev: bool, as_json: bool) -> None:
+    """Select one tool from a catalog (BM25; optional Jev). Selection only — never executes."""
+    data = json.loads(Path(tools_path).read_text(encoding="utf-8"))
+    tools = data if isinstance(data, list) else data.get("tools", [])
+    config = EngineConfig(enable_jev_router=enable_jev)
+    engine = TokenEngine(config)
+    result = engine.route_tool(intent, tools)
+    payload = {
+        "tool_name": result.tool_name,
+        "confidence": result.confidence,
+        "risk_tier": result.risk_tier.value,
+        "source": result.source,
+        "candidates": result.candidates,
+        "used_jev": result.used_jev,
+        "jev_input_tokens": result.jev_input_tokens,
+        "jev_output_tokens": result.jev_output_tokens,
+        "estimated_catalog_tokens_full": result.estimated_catalog_tokens_full,
+        "estimated_catalog_tokens_shortlist": result.estimated_catalog_tokens_shortlist,
+        "estimated_net_savings": result.estimated_net_savings,
+        "allow_execute": result.allow_execute,
+        "reason": result.reason,
+    }
+    if as_json:
+        click.echo(json.dumps(payload, indent=2))
+        return
+    click.echo(f"tool: {result.tool_name}  source={result.source}  confidence={result.confidence:.2f}")
+    click.echo(f"risk={result.risk_tier.value} allow_execute={result.allow_execute}")
+    click.echo(f"candidates: {', '.join(result.candidates)}")
+    click.echo(
+        f"catalog tokens full→shortlist: {result.estimated_catalog_tokens_full}→"
+        f"{result.estimated_catalog_tokens_shortlist} (est. net {result.estimated_net_savings})"
+    )
+    if result.used_jev:
+        click.echo(f"jev tokens in/out: {result.jev_input_tokens}/{result.jev_output_tokens}")
+    click.echo(f"reason: {result.reason}")
+
+
 @cli.command("cursor-setup")
 @click.option("--global", "global_setup", is_flag=True, help="Show global MCP config")
 def cursor_setup_cmd(global_setup: bool) -> None:

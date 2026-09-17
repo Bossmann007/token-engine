@@ -15,3 +15,13 @@
 - cursor-kit at `~/cursor-kit` → `~/.cursor/repos/cursor-kit` ([GitHub](https://github.com/Bossmann007/cursor-kit))
 - Skills: mattpocock/skills + find-skills in `~/.cursor/skills/`; book rules in `~/.cursor/rules/books/`
 - Pair with `/setup-project` from cursor-kit for per-repo bootstrap
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues via `gh` CLI ([Bossmann007/token-engine](https://github.com/Bossmann007/token-engine)). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/` (created lazily by domain-modeling). See `docs/agents/domain.md`.

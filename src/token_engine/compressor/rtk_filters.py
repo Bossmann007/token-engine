@@ -22,13 +22,14 @@ DETECTORS: list[tuple[str, re.Pattern[str]]] = [
     ("webpack", re.compile(r"(webpack compiled|ERROR in |Module not found|asset \S+ \d+ (?:KiB|MiB|bytes)|WARNING in )", re.M)),
     ("gradle", re.compile(r"(^> Task |BUILD SUCCESSFUL|BUILD FAILED|^FAILURE: Build failed)", re.M)),
     ("journalctl", re.compile(r"(^-- Logs begin|^-- Boot \d+|^[A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} \S+ \S+\[\d+\]:)", re.M)),
-    ("terraform", re.compile(r"(^Terraform |^Plan: \d+ to |^No changes\.|^Error:|^\s*[~+-]\s+\S+.*= |^  # module\.)", re.M)),
+    ("terraform", re.compile(r"(^Terraform |^Plan: \d+ to |^No changes\.|^\s*[~+-]\s+\S+.*= |^  # module\.)", re.M)),
     ("pnpm", re.compile(r"(^Progress: resolved|^Packages: \+|^Done in [\d.]+s|^WARN\s+.*deprecated)", re.M)),
     ("vite", re.compile(r"(^vite v\d|built in [\d.]+s|dist/.*\.(js|css)|error during build)", re.M)),
     ("npm", re.compile(r"(^npm warn |^npm error |added \d+ packages|audited \d+ packages|up to date)", re.M | re.I)),
     ("tsc", re.compile(r"(error TS\d+|Found \d+ error|\.tsx?\(\d+,\d+\):)", re.M)),
     ("eslint", re.compile(r"(\d+:\d+\s+error\s+|✖ \d+ problem|ESLint)", re.M)),
-    ("playwright", re.compile(r"(\d+ failed|\d+ passed|Error:|TimeoutError|playwright)", re.M | re.I)),
+    ("traceback", re.compile(r"^Traceback \(most recent call last\):", re.M)),
+    ("playwright", re.compile(r"(playwright|TimeoutError|expect\()", re.M | re.I)),
     ("gh", re.compile(r"(^gh:|GraphQL:|HTTP 4\d\d|pull request #\d+)", re.M)),
 ]
 
@@ -507,6 +508,13 @@ def _compress_traceback(text: str, aggressiveness: float) -> CompressResult:
     return _finish(text, out, "traceback")
 
 
+def _compress_playwright(text: str, aggressiveness: float) -> CompressResult:
+    # Lazy import: test_output imports this module for jest.
+    from token_engine.compressor.test_output import _compress_playwright as _pw
+
+    return _pw(text, aggressiveness)
+
+
 _COMPRESSORS = {
     "docker": _compress_docker,
     "cargo": _compress_cargo,
@@ -528,4 +536,6 @@ _COMPRESSORS = {
     "tsc": _compress_tsc,
     "eslint": _compress_eslint,
     "gh": _compress_gh,
+    "playwright": _compress_playwright,
+    "traceback": _compress_traceback,
 }

@@ -24,8 +24,12 @@ engine = TokenEngine.default()  # full stack enabled
 | Cache aligner | `enable_cache_aligner` | true | headroom |
 | Sandbox execute | `enable_sandbox_execute` | true | context-mode |
 | Tool schema compaction | `enable_tool_schema_compaction` | true | mcp-compressor |
+| RTK-inspired filters | `enable_rtk_filters` | true | rtk (Python subset) |
+| Jev tool router | `enable_jev_router` | **false** | TypeSafe (opt-in) |
 
 Token counting default: `o200k_base` (modern BPE; override via `encoding`).
+
+See also [RTK.md](RTK.md) and [JEV.md](JEV.md).
 
 ## EngineConfig
 

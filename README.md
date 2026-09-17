@@ -105,6 +105,8 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 | [API.md](docs/API.md) | REST endpoints |
 | [CURSOR-ENV.md](docs/CURSOR-ENV.md) | Ultimate Cursor Environment |
 | [BENCHMARKS.md](docs/BENCHMARKS.md) | Baseline gates |
+| [RTK.md](docs/RTK.md) | Python RTK filters + optional official binary |
+| [JEV.md](docs/JEV.md) | Opt-in TypeSafe Jev tool routing (harness) |
 | [cursor-kit](https://github.com/Bossmann007/cursor-kit) | Templates, hooks, `/setup-project` |
 
 ## License

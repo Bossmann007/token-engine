@@ -64,6 +64,9 @@ def detect_content_type(text: str, hint: str = "") -> ContentType:
     log_hits = sum(1 for p in log_patterns if re.search(p, stripped, re.MULTILINE | re.IGNORECASE))
     if log_hits >= 2 or "Traceback" in stripped:
         return ContentType.LOG
+    # Node/V8 stacks: many "at ..." frames; do not classify as CONFIG via "Error: ..."
+    if len(re.findall(r"^\s*at .+\(", stripped, re.MULTILINE)) >= 3:
+        return ContentType.LOG
 
     # Terminal output (command results)
     if re.search(r"^(total \d+|drwx|[-rwx]{10}|\$ |>>> |> )", stripped, re.MULTILINE):

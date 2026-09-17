@@ -90,6 +90,21 @@ class TokenEngine:
     def get_lazy_tool_schema(self, session_id: str, tool_name: str) -> tuple[dict | None, dict]:
         return self._optimizer.get_lazy_tool_schema(session_id, tool_name)
 
+    def route_tool(
+        self,
+        intent: str,
+        tools: list[dict],
+        *,
+        allowlist: set[str] | None = None,
+        denylist: set[str] | None = None,
+    ):
+        """BM25 (+ optional Jev) tool pick. Does not execute tools; selection only."""
+        from token_engine.jev.router import ToolRouter
+
+        return ToolRouter(self.config, counter=self.tokenizer).route(
+            intent, tools, allowlist=allowlist, denylist=denylist
+        )
+
     def retrieve_compressed(self, handle: str) -> str | None:
         return self._optimizer.retrieve_ccr(handle)
 

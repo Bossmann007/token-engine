@@ -37,7 +37,8 @@ class ToolOutputCompressor(Compressor):
         if tool_hint == "git":
             return self._compress_git(text, aggressiveness, query=query)
         test_runner = detect_test_runner(text)
-        if test_runner:
+        # jest compression is RTK-backed; honor enable_rtk_filters
+        if test_runner and not (test_runner == "jest" and not self._config_rtk_enabled()):
             return compress_test_output(text, test_runner, aggressiveness=aggressiveness)
         if tool_hint == "pytest":
             return self._compress_pytest(text, aggressiveness)
@@ -45,7 +46,7 @@ class ToolOutputCompressor(Compressor):
             return self._compress_grep(text, aggressiveness)
         if tool_hint == "ls":
             return self._compress_ls(text, aggressiveness)
-        if tool_hint in ("npm", "jest"):
+        if tool_hint in ("npm", "jest") and self._config_rtk_enabled():
             return rtk_filters.compress_rtk_tool(text, tool_hint, aggressiveness=aggressiveness)
 
         if self._config_rtk_enabled():
