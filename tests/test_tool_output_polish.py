@@ -45,7 +45,8 @@ class TestGitTaskFilter:
         assert "login.py" in result.content
         assert "README.md" not in result.content
         assert "debug.log" not in result.content
-        assert "none task-relevant" in result.content
+        assert "untracked:" in result.content
+        assert "tmp_output.txt" not in result.content
 
     def test_agent_context_git_shrinks(self):
         data = json.loads(FIXTURES.joinpath("agent_context.json").read_text(encoding="utf-8"))

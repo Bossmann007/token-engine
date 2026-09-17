@@ -23,7 +23,7 @@
 ---
 
 Compress agent context while preserving errors, stack traces, and task-critical code.  
-Built for **Cursor** + MCP  
+Built for **Cursor** + MCP. Live path: official RTK on Shell + compress hooks/MCP + codebase-memory. Keep Jev/sandbox **off** in Cursor (see [JEV.md](docs/JEV.md)).
 
 ## Cursor Integration
 
@@ -72,27 +72,28 @@ token-engine benchmark --check-baseline
 token-engine serve   # REST on :8741
 ```
 
-Example benchmark output:
+Main-corpus benchmark (balanced, 2026-09-17) — see [BENCHMARKS.md](docs/BENCHMARKS.md):
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║                      Token Engine                        ║
-║                     Benchmark Report                     ║
-╚══════════════════════════════════════════════════════════╝
-Fixture                 Original     Saved   Ratio  Bar
-────────────────────────────────────────────────────────
-app_log                    1,234       890   72.1%  ███████████░░░░░
+Fixture                 Original  Optimized   Ratio
+────────────────────────────────────────────────────
+TOTAL                      6,293        510   91.9%
+Net (minus omit/CCR overhead)                 ~90.0%
+Holdout adv_* (stress only)                   ~61.1%
 ```
+
+Fixture % ≠ Cursor bill. Real savings = RTK-before-Shell + compress before reasoning + CBM instead of fat Reads.
 
 ## Features
 
 | Module | What it does |
 |--------|----------------|
 | **Analyzer** | Token tiers, redundancy, relevance scoring |
-| **Optimizer** | BM25 rank + knapsack budget |
-| **Compressors** | JSON, logs, code, diffs, pytest/git/npm output |
+| **Optimizer** | BM25 rank + hybrid knapsack (live-zone) |
+| **Compressors** | Session semantic (T/E/C/O), JSON, logs, code, diffs, pytest/git/npm/RTK |
 | **MCP** | `caveman_compress`, session compress, schema compact |
 | **Harness** | `POST /optimize-context` before each LLM turn |
+| **Jev** | Opt-in tool shortlist for harnesses only — off in Cursor |
 
 Fail-closed: never replaces content unless provably smaller **and** quality checks pass.
 
@@ -103,8 +104,9 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
 | [ALGORITHMS.md](docs/ALGORITHMS.md) | Techniques + rejected approaches |
 | [API.md](docs/API.md) | REST endpoints |
+| [CURSOR.md](docs/CURSOR.md) | Cursor MCP + live efficiency checklist |
 | [CURSOR-ENV.md](docs/CURSOR-ENV.md) | Ultimate Cursor Environment |
-| [BENCHMARKS.md](docs/BENCHMARKS.md) | Baseline gates |
+| [BENCHMARKS.md](docs/BENCHMARKS.md) | Live numbers + baseline gates |
 | [RTK.md](docs/RTK.md) | Python RTK filters + optional official binary |
 | [JEV.md](docs/JEV.md) | Opt-in TypeSafe Jev tool routing (harness) |
 | [SECURITY.md](docs/SECURITY.md) | Executor limits, Jev privacy, architecture honesty |

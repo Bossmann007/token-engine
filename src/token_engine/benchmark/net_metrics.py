@@ -105,13 +105,9 @@ def measure_corpus(
         n += 1
 
     gross = (original - compressed) / original if original else 0.0
-    # Net = treat omit/ccr markers as non-savings (still in prompt) + placeholder for future
-    # jev/reprocess (0 until instrumented)
-    net_saved = original - compressed  # markers already inside compressed
-    # Report overhead separately; net_ratio = (orig - compressed - future_costs) / orig
-    # For now net == gross minus nothing extra beyond what's already counted in compressed.
-    # Economica_liquida proxy: gross, with overhead share of compressed disclosed.
-    net = (original - compressed - 0) / original if original else 0.0
+    # Economia líquida: gross savings minus omit/CCR marker tokens still sitting in the prompt.
+    # Jev / reprocess costs stay 0 until instrumented.
+    net = (original - compressed - overhead) / original if original else 0.0
 
     # Verify floors still hold under this quality
     results = runner.run_all(fixtures_dir)

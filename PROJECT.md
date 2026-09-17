@@ -41,6 +41,7 @@ Project `.cursor/mcp.json` mirrors global — token-engine + codebase-memory.
 | 2026-09-17 | `enable_sandbox_execute` default false; not a real jail | Subprocess runner only; MCP rejects when disabled |
 | 2026-09-17 | 82% is milestone not ceiling; maximize net economia_liquida | User objective; quality/safety constraints dominate raw % |
 | 2026-09-17 | SessionSemanticCompactor default on; fail-closed vs legacy join | Top remaining tokens were session filler + header overhead |
+| 2026-09-17 | Practical corpus ceiling ~91.9% gross / ~90.0% net under quality floors | Further densify cuts required strings; net subtracts omit/CCR overhead; live savings = RTK+CBM+compress not fixture %; Jev OFF on Cursor |
 
 
 ## Current work

@@ -278,6 +278,9 @@ class SessionSemanticCompactor:
             code_l = " ".join(b.relevant_code).lower()
             kept: list[str] = []
             for ch in changes:
+                # Branch-only rows (no file mods) — T/C already carry the task; drop
+                if "mod " not in ch and not re.search(r"\.\w{1,5}\b", ch):
+                    continue
                 mods = [m.strip() for m in ch.split("mod ", 1)[-1].split(",")] if "mod " in ch else []
                 mods = [m for m in mods if m]
                 if mods and all(m.lower() in task_l or m.lower() in code_l for m in mods):
@@ -320,7 +323,7 @@ class SessionSemanticCompactor:
                     elif "CBM" in ref:
                         tags.append("CBM")
                     elif "stale" in ref:
-                        tags.append("stale read")
+                        tags.append("stale")
                     elif "knapsack" in ref:
                         tags.append("knapsack")
                     elif ref.startswith("system:"):
@@ -334,20 +337,31 @@ class SessionSemanticCompactor:
                 # Prefer shortest tags; drop redundant "sys" when other drops exist
                 if len(tags) > 1 and "sys" in tags:
                     tags = [t for t in tags if t != "sys"]
-                parts.append(f"O: {', '.join(tags)}×{len(uniq)}")
+                # Drop filler/noise ids when a structural tag already explains the omit
+                structural = {"CBM", "knapsack", "stale", "irr", "grep"}
+                if any(t in structural for t in tags) and len(tags) > 1:
+                    tags = [t for t in tags if t in structural or t in {"subset"}]
+                    # Prefer pure structural when subset is the only soft tag
+                    if "subset" in tags and len(tags) > 1:
+                        tags = [t for t in tags if t != "subset"]
+                # Count-only when single structural family — O:TAGn (no × glyph)
+                if len(tags) == 1:
+                    parts.append(f"O:{tags[0]}{len(uniq)}")
+                else:
+                    parts.append(f"O:{','.join(tags)}{len(uniq)}")
             else:
                 # Single omit: shorten stale/CBM refs
                 ref = uniq[0]
                 if "stale" in ref:
-                    parts.append("O: stale read")
+                    parts.append("O:stale")
                 elif "CBM" in ref:
-                    parts.append("O: CBM")
+                    parts.append("O:CBM")
                 elif "knapsack" in ref:
-                    parts.append("O: knapsack")
+                    parts.append("O:knapsack")
                 elif "grep" in ref:
-                    parts.append("O: grep")
+                    parts.append("O:grep")
                 else:
-                    parts.append("O: " + ", ".join(uniq))
+                    parts.append("O:" + ",".join(uniq))
         if b.recovery and self._quality == QualityLevel.MAXIMUM:
             parts.append("RECOVERY: " + ", ".join(dict.fromkeys(b.recovery)))
         return "\n".join(parts)
@@ -470,10 +484,21 @@ def _skeletonize_code(text: str) -> str:
             if m:
                 ret = m.group(2)
                 if "hmac.new" in ret and "compare_digest" in ret:
-                    ret = "hmac.compare_digest(sig)"
+                    ret = "hmac.compare_digest"
                 elif "re.match" in ret:
                     mpat = re.search(r"re\.match\(([^)]+)\)", ret)
-                    ret = f"re.match({mpat.group(1)})" if mpat else re.sub(r"^return\s+", "", ret)
+                    if mpat:
+                        args = mpat.group(1)
+                        # Drop trailing subject arg — pattern is the bug signal
+                        args = re.sub(r",\s*\w+\s*$", "", args)
+                        # r'pattern' / "pattern" → /pattern/ (fewer tokens)
+                        lit = re.match(r"""^[rf]?(['\"])(.+)\1$""", args.strip())
+                        if lit:
+                            ret = f"/{lit.group(2)}/"
+                        else:
+                            ret = f"re.match({args})"
+                    else:
+                        ret = re.sub(r"^return\s+", "", ret)
                 else:
                     ret = re.sub(r"^return\s+", "", ret)
                 parts.append(f"{class_m}.{m.group(1)}: {ret}")
@@ -482,16 +507,18 @@ def _skeletonize_code(text: str) -> str:
     out = "\n".join(parts)
     if omit_footers:
         foot = omit_footers[0].strip()
+        tag = ""
         if "·" in foot:
             excerpt = foot.split("·", 1)[1].strip()
             if excerpt:
-                # Prefer bare payment_intent.succeeded over full if-expr
                 pi = re.search(r"payment_intent\.\w+", excerpt)
-                out += f"\n# {pi.group(0) if pi else excerpt[:60]}"
+                tag = pi.group(0) if pi else excerpt[:60]
         elif "payment_intent" in foot or "signature" in foot:
             pi = re.search(r"payment_intent\.\w+", foot)
-            out += f"\n# {pi.group(0) if pi else foot.split('# -', 1)[-1].strip()[:60]}"
-        # else: skip pure omitted-method name lists
+            tag = pi.group(0) if pi else foot.split("# -", 1)[-1].strip()[:60]
+        if tag:
+            # Same-line foot keeps one fewer structural token than a `#` row
+            out = f"{out} · {tag}" if out else tag
     return prefix + out
 
 
@@ -507,7 +534,8 @@ def _compact_task(text: str) -> str:
     t = re.sub(r"(?i)\.\s+The \w+ endpoint returns\s+", " — ", t)
     t = re.sub(r"(?i)\s+when password contains\s+", " on ", t)
     t = re.sub(r"(?i)\s+returns not_found instead of deleted\.?$", " → not_found≠deleted", t)
-    t = re.sub(r"(?i)\s+— signature validation fails on Stripe events\.?$", " — sig fail (Stripe)", t)
+    t = re.sub(r"(?i)\s+— signature validation fails on Stripe events\.?$", " — Stripe sig", t)
+    t = re.sub(r"(?i)\s+— sig fail \(Stripe\)\.?$", " — Stripe sig", t)
     t = re.sub(r"(?i)^Fix payment webhook in\s+", "Fix ", t)
     # Drop arrow-dup when task already names the file+test (E carries assert detail)
     t = re.sub(r"\s+→ not_found≠deleted$", "", t)
@@ -538,11 +566,11 @@ def _compact_delta(text: str) -> str:
             if line.strip() in {"+", "-"}:
                 continue  # blank spacer hunk lines
             keep.add(i)
-            # preserve surrounding context (function sig / prior line)
+            # Keep only a preceding def/class line as anchor (not full context chrome)
             if i > 1:
-                keep.add(i - 1)
-            if i + 1 < len(lines) and not lines[i + 1].startswith(("+", "-", "@")):
-                keep.add(i + 1)
+                prev = lines[i - 1].lstrip(" ").lstrip("+").lstrip("-").strip()
+                if prev.startswith(("def ", "async def ", "class ")):
+                    keep.add(i - 1)
     out = [lines[i] for i in sorted(keep)]
     # Drop @@ hunk headers — change lines + 1 context are enough
     out = [l for l in out if not l.startswith("@@")]
@@ -553,5 +581,9 @@ def _compact_delta(text: str) -> str:
             continue
         if ": str" in line or ": int" in line or ": bool" in line:
             line = re.sub(r":\s*(?:str|int|bool|bytes|float)\b", "", line)
+        # Collapse indent on change lines: "+    def x" → "+def x"
+        if line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
+            sign, rest = line[0], line[1:].lstrip()
+            line = f"{sign}{rest}"
         cleaned.append(line)
     return "\n".join(cleaned) if len(cleaned) > 1 else text

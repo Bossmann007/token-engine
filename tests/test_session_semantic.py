@@ -40,7 +40,7 @@ class TestSessionSemanticCompactor:
         assert "AssertionError" in out
         assert "Meeting notes from last sprint" not in out
         assert "OMIT:" in out or "O:" in out
-        assert "filler_notes" in out
+        assert "knapsack" in out  # omit aggregate — id chrome dropped when structural tag present
         assert out.count("[dropped:") <= 1  # aggregated, not per-header spam
 
     def test_fail_closed_never_expands_vs_legacy(self):

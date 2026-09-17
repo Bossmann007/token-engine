@@ -90,7 +90,27 @@ def _compress_docker(text: str, aggressiveness: float) -> CompressResult:
         parts.append(f"ERR ({len(errors)}):")
         parts.extend(l.strip() for l in errors[:10])
     if summary:
-        parts.extend(l.strip() for l in summary[:5])
+        if aggressiveness >= 0.7:
+            built = tagged = None
+            for l in summary:
+                mb = re.search(r"Successfully built (\S+)", l, re.I)
+                mt = re.search(r"Successfully tagged (\S+)", l, re.I)
+                if mb:
+                    h = mb.group(1)
+                    built = h[:12] if len(h) > 12 else h
+                if mt:
+                    tagged = mt.group(1)
+            bits = []
+            if built:
+                bits.append(f"built {built}")
+            if tagged:
+                bits.append(f"tagged {tagged}")
+            if bits:
+                parts.append(" · ".join(bits))
+            else:
+                parts.extend(l.strip() for l in summary[:3])
+        else:
+            parts.extend(l.strip() for l in summary[:5])
 
     return _finish(text, "\n".join(parts), "docker")
 
@@ -105,16 +125,27 @@ def _compress_cargo(text: str, aggressiveness: float) -> CompressResult:
     max_crates = max(0, int(3 * (1 - aggressiveness)))
     parts: list[str] = []
     if finished:
-        parts.extend(l.strip() for l in finished[:3])
-    if errors:
-        parts.append(f"ERR ({len(errors)}):")
-        parts.extend(l.strip() for l in errors[:15])
+        fin = [l.strip() for l in finished[:1]]
+        if aggressiveness >= 0.7 and compiling and not errors:
+            # One line: Finished … · N crates
+            parts.append(f"{fin[0]} · {len(compiling)} crates")
+        else:
+            parts.extend(fin if aggressiveness >= 0.7 else [l.strip() for l in finished[:3]])
+            if compiling and not errors:
+                if max_crates <= 0:
+                    parts.append(f"cargo: {len(compiling)} crates")
+                else:
+                    parts.append(f"cargo: {len(compiling)} crates, last {max_crates}")
+                    parts.extend(l.strip() for l in compiling[-max_crates:])
     elif compiling:
         if max_crates <= 0:
             parts.append(f"cargo: {len(compiling)} crates")
         else:
             parts.append(f"cargo: {len(compiling)} crates, last {max_crates}")
             parts.extend(l.strip() for l in compiling[-max_crates:])
+    if errors:
+        parts.append(f"ERR ({len(errors)}):")
+        parts.extend(l.strip() for l in errors[:15])
     if warnings and aggressiveness < 0.7:
         parts.append(f"WARN ({len(warnings)}):")
         parts.extend(l.strip() for l in warnings[:5])
@@ -360,7 +391,26 @@ def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
     installing = [l for l in lines if re.search(r"^npm http fetch|^reify:|^idealTree:", l)]
 
     max_lines = max(1, int(10 * (1 - aggressiveness)))
-    parts: list[str] = summary[:3]
+    parts: list[str] = []
+    for s in summary[:3]:
+        if aggressiveness >= 0.7:
+            s = re.sub(
+                r"added (\d+) packages,\s*and\s+audited (\d+) packages in ([\d.]+s)",
+                r"added \1 packages, audited \2 in \3",
+                s,
+                flags=re.I,
+            )
+            s = re.sub(
+                r"added (\d+) packages(?:, and)? audited (\d+) packages in ([\d.]+s)",
+                r"added \1 packages, audited \2 in \3",
+                s,
+                flags=re.I,
+            )
+            s = re.sub(r"added (\d+) packages$", r"added \1 packages", s, flags=re.I)
+            # Keep the word packages on the added line for floor/hook checks
+            s = re.sub(r"^audited (\d+) packages", r"audited \1", s, flags=re.I)
+            s = re.sub(r"found (\d+) vulnerabilities \(", r"\1 vulnerabilities (", s, flags=re.I)
+        parts.append(s.strip())
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
         parts.extend(l.strip() for l in errors[:12])
@@ -371,11 +421,31 @@ def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
         elif installing:
             parts.append(f"=== INSTALL ({len(installing)}, last {max_lines}) ===")
             parts.extend(l.strip() for l in installing[-max_lines:])
-    elif warnings or installing:
+    elif (warnings or installing) and aggressiveness < 0.7:
         omitted = len(warnings) + len(installing)
         parts.append(f"npm: {omitted} warn/install lines omitted")
 
     return _finish(text, "\n".join(parts), "npm")
+
+
+def _dense_jest_summary(line: str, aggressiveness: float) -> str:
+    """Keep 'Test Suites' token; drop passed count when failed present at balanced+."""
+    if aggressiveness < 0.5 or "Test Suites:" not in line:
+        return line
+    # Test Suites: 1 failed, 3 passed, 4 total → Test Suites: 1 failed/4
+    line = re.sub(
+        r"(Test Suites:\s*\d+\s+failed),\s*\d+\s+passed,\s*(\d+)\s+total",
+        r"\1/\2",
+        line,
+        flags=re.I,
+    )
+    line = re.sub(
+        r"(Test Suites:\s*\d+\s+failed),\s*(\d+)\s+total",
+        r"\1/\2",
+        line,
+        flags=re.I,
+    )
+    return line
 
 
 def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
@@ -411,9 +481,9 @@ def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
             compact_body.append(f"Expected {expected} got {received}")
         if len(summaries) > 1:
             # Keep one summary line only
-            parts = compact_body + [summaries[0].strip()]
+            parts = compact_body + [_dense_jest_summary(summaries[0].strip(), aggressiveness)]
         else:
-            parts = compact_body + [s.strip() for s in summaries[:1]]
+            parts = compact_body + [_dense_jest_summary(s.strip(), aggressiveness) for s in summaries[:1]]
         return _finish(text, "\n".join(parts), "jest")
 
     summary = [l for l in lines if re.search(r"Test Suites:|^Tests:|^Snapshots:|^Time:", l)]
@@ -423,7 +493,7 @@ def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
     passes = [l for l in lines if l.startswith("PASS ")]
 
     max_pass = max(1, int(3 * (1 - aggressiveness)))
-    parts: list[str] = summary[:5]
+    parts: list[str] = [_dense_jest_summary(s.strip(), aggressiveness) for s in summary[:5]]
     if fails:
         parts.append(f"=== FAIL ({len(fails)}) ===")
         parts.extend(l.strip() for l in fails[:10])
@@ -456,7 +526,7 @@ def _compress_pnpm(text: str, aggressiveness: float) -> CompressResult:
     elif progress and not summary:
         parts.append(f"=== PROGRESS ({len(progress)}, last {max_lines}) ===")
         parts.extend(l.strip() for l in progress[-max_lines:])
-    elif progress and summary:
+    elif progress and summary and aggressiveness < 0.7:
         parts.append(f"Progress: {len(progress)} resolution steps omitted")
 
     return _finish(text, "\n".join(parts), "pnpm")
@@ -470,7 +540,12 @@ def _compress_vite(text: str, aggressiveness: float) -> CompressResult:
     warnings = [l for l in lines if "warning" in l.lower()]
 
     max_assets = max(0, int(3 * (1 - aggressiveness)))
-    parts: list[str] = summary[:2]
+    # Prefer built-time line; drop "vite vX building..." when built present at balanced+
+    built = [l for l in summary if re.search(r"built in", l, re.I)]
+    if aggressiveness >= 0.7 and built:
+        parts: list[str] = [built[0].strip()]
+    else:
+        parts = summary[:2]
     if errors:
         parts.append(f"ERR ({len(errors)}):")
         parts.extend(l.strip() for l in errors[:12])

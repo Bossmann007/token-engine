@@ -121,13 +121,26 @@ class ToolOutputCompressor(Compressor):
                 if task_paths:
                     relevant = [f for f in signal if _path_matches_task(f, task_paths)]
                     if not relevant:
-                        parts.append(f"untracked: {len(files)} files (none task-relevant)")
+                        parts.append(
+                            f"untracked: {len(files)}"
+                            if aggressiveness >= 0.4
+                            else f"untracked: {len(files)} files (none task-relevant)"
+                        )
                         continue
                     signal = relevant
                 if not signal:
-                    parts.append(f"untracked: {len(files)} files ({len(noise)} noise omitted)")
+                    # Keep the word "untracked"; count alone is enough at balanced+
+                    parts.append(
+                        f"untracked: {len(files)}"
+                        if aggressiveness >= 0.4
+                        else f"untracked: {len(files)} files ({len(noise)} noise omitted)"
+                    )
                     continue
-                parts.append(f"{name}: {len(files)} files ({len(noise)} noise omitted)")
+                parts.append(
+                    f"{name}: {len(files)}"
+                    if aggressiveness >= 0.7
+                    else f"{name}: {len(files)} files ({len(noise)} noise omitted)"
+                )
                 # Cap listed signal hard — names already summarized in count line
                 show = min(max_files, 2 if aggressiveness >= 0.4 else max_files)
                 parts.extend(f"  {f}" for f in signal[:show])
@@ -141,9 +154,11 @@ class ToolOutputCompressor(Compressor):
                 if not visible:
                     parts.append(f"{name}: {len(files)} files (none task-relevant)")
                     continue
-            # Dense: "modified: a.py, b.py" beats header + indented list
             clean = [re.sub(r"^(?:modified|new file|deleted):\s*", "", f).strip() for f in visible]
-            if len(clean) <= 4:
+            if aggressiveness >= 0.5 and len(clean) <= 4:
+                short = {"modified": "M", "added": "A", "deleted": "D"}.get(name, name)
+                parts.append(f"{short}: {', '.join(clean)}")
+            elif len(clean) <= 4:
                 parts.append(f"{name}: {', '.join(clean)}")
             else:
                 parts.append(f"{name}: {len(files)} files")
@@ -194,26 +209,30 @@ class ToolOutputCompressor(Compressor):
 
         max_failures = max(2, int(6 * (1 - aggressiveness * 0.5)))
         parts: list[str] = []
-        if summary:
-            # Prefer "N failed" over full timing line
-            compact_sum: list[str] = []
-            for s in summary[:3]:
-                m = re.search(r"(\d+ failed)", s, re.I)
-                if m and "passed" in s.lower():
-                    compact_sum.append(m.group(1))
-                else:
-                    compact_sum.append(s)
-            parts.extend(compact_sum)
-        if failure_sections:
-            parts.append(f"FAIL ({len(failure_sections)}):")
-            parts.extend(failure_sections[:max_failures])
+        if failure_sections and aggressiveness >= 0.5 and len(failure_sections) == 1:
+            # Single failure: one dense line beats "1 failed" + "FAIL (1):" + body
+            # Threshold 0.5 so CRITICAL-capped agg (≤0.55) still densifies
+            dense = _dense_pytest_failure(failure_sections[0])
+            if dense:
+                parts.append(dense)
+            else:
+                if summary:
+                    parts.extend(_compact_pytest_summary(summary))
+                parts.append("FAIL (1):")
+                parts.append(failure_sections[0])
         else:
-            if failed_tests:
-                parts.append(f"FAILED ({len(failed_tests)}):")
-                parts.extend(failed_tests[:max_failures])
-            if error_lines:
-                parts.append(f"ERR ({len(error_lines)}):")
-                parts.extend(error_lines[:max_failures])
+            if summary:
+                parts.extend(_compact_pytest_summary(summary))
+            if failure_sections:
+                parts.append(f"FAIL ({len(failure_sections)}):")
+                parts.extend(failure_sections[:max_failures])
+            else:
+                if failed_tests:
+                    parts.append(f"FAILED ({len(failed_tests)}):")
+                    parts.extend(failed_tests[:max_failures])
+                if error_lines:
+                    parts.append(f"ERR ({len(error_lines)}):")
+                    parts.extend(error_lines[:max_failures])
 
         out = "\n".join(parts)
         if not out or len(out) >= len(text):
@@ -277,8 +296,54 @@ def _path_matches_task(path: str, task_paths: set[str]) -> bool:
     return False
 
 
+def _compact_pytest_summary(summary: list[str]) -> list[str]:
+    compact_sum: list[str] = []
+    for s in summary[:3]:
+        m = re.search(r"(\d+ failed)", s, re.I)
+        if m and "passed" in s.lower():
+            compact_sum.append(m.group(1))
+        else:
+            compact_sum.append(s)
+    return compact_sum
+
+
+def _dense_pytest_failure(section: str) -> str | None:
+    """Collapse a single failure section into one line that keeps floors."""
+    name = None
+    path = None
+    compare = None
+    err = None
+    for line in section.splitlines():
+        s = line.strip()
+        if re.match(r"^test_\w+", s):
+            name = s.rstrip("()")
+        elif re.search(r"\.\w+:\d+", s):
+            path = s
+        elif "≠" in s:
+            compare = s
+        elif "AssertionError" in s or "Error" in s:
+            err = "AssertionError" if "AssertionError" in s else s
+        elif s.startswith("assert ") and compare is None:
+            # assert result.status == "deleted" — prefer ≠ line if present
+            pass
+    if not name:
+        return None
+    bits = [f"FAILED {name}"]
+    if compare:
+        bits.append(compare)
+    if path:
+        bits.append(path)
+    if err and (not path or "AssertionError" not in path):
+        # Avoid duplicating AssertionError when path line already names it
+        bits.append(err)
+    elif err and "AssertionError" not in " ".join(bits):
+        bits.append(err)
+    return " ".join(bits)
+
+
 def _trim_pytest_failure_section(lines: list[str]) -> str:
     kept: list[str] = []
+    minus = plus = None
     for line in lines:
         stripped = line.strip()
         if re.match(r"^=+$", stripped) or re.match(r"^_{5,}$", stripped):
@@ -297,11 +362,30 @@ def _trim_pytest_failure_section(lines: list[str]) -> str:
                 continue
             # Drop def line body chrome — keep name via test_xxx in path/assert
             if stripped.startswith("def test_") and stripped.endswith(":"):
-                # keep bare name only
                 kept.append(stripped[4:].rstrip(":"))
                 continue
             if stripped.startswith(">"):
                 kept.append(stripped.lstrip("> ").strip())
                 continue
+            # Collapse pytest E +/- chrome into one compare token
+            if stripped.startswith(("E         - ", "E\t- ")):
+                minus = stripped.split("-", 1)[-1].strip()
+                continue
+            if stripped.startswith(("E         + ", "E\t+ ")):
+                plus = stripped.split("+", 1)[-1].strip()
+                continue
+            if stripped.startswith(("- ", "+ ")) and "Error" not in stripped:
+                # bare unified-diff style leftovers
+                if stripped.startswith("- "):
+                    minus = stripped[2:].strip()
+                else:
+                    plus = stripped[2:].strip()
+                continue
+            # Drop verbose AssertionError: assert 'x' == 'y' when we keep assert line
+            if stripped.startswith("E ") and "AssertionError: assert" in stripped:
+                kept.append("AssertionError")
+                continue
             kept.append(stripped)
+    if minus is not None or plus is not None:
+        kept.append(f"{minus or '?'}≠{plus or '?'}")
     return "\n".join(kept).strip() if kept else "\n".join(l.strip() for l in lines if l.strip())

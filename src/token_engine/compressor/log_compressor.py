@@ -134,8 +134,12 @@ class LogCompressor(Compressor):
                     blines = [l for l in block.splitlines() if l.strip()]
                     exc = [l for l in blines if re.match(r"^\w+(Error|Exception|Warning)", l)]
                     trimmed.append(exc[-1] if exc else blines[-1])
-                parts.append("CRIT:")
-                parts.extend(trimmed)
+                # Single-line CRIT — label+exception share one row
+                if len(trimmed) == 1:
+                    parts.append(f"CRIT: {trimmed[0]}")
+                else:
+                    parts.append("CRIT:")
+                    parts.extend(trimmed)
             else:
                 parts.append("CRIT:")
                 parts.extend(critical_blocks)
@@ -151,15 +155,45 @@ class LogCompressor(Compressor):
             # Dedup ERROR lines; drop redundant gateway/timeout noise at high agg
             uniq_err: list[str] = []
             seen: set[str] = set()
+            crit_blob = " ".join(parts).lower()
             for e in errors:
                 key = re.sub(r"\d+", "#", e.strip())[:80]
                 if key in seen:
                     continue
                 seen.add(key)
-                uniq_err.append(_strip_log_timestamps(e.strip()))
-            cap = max(2, int(6 * (1 - aggressiveness)))
-            parts.append(f"ERR ({len(errors)}):")
-            parts.extend(uniq_err[:cap])
+                stripped = _strip_log_timestamps(e.strip())
+                # Drop ERR rows that only restate a CRIT exception already kept
+                if aggressiveness >= 0.5 and crit_blob:
+                    core = re.sub(r"^(ERROR|ERR|CRIT)\s+", "", stripped, flags=re.I)
+                    low = core.lower()
+                    if low in crit_blob:
+                        continue
+                    # Phrase overlap (e.g. Connection refused already on CRIT line)
+                    if any(
+                        phrase in crit_blob and phrase in low
+                        for phrase in (
+                            "connection refused",
+                            "timed out",
+                            "timeout",
+                            "permission denied",
+                        )
+                    ):
+                        continue
+                    if any(
+                        tok.lower() in crit_blob
+                        for tok in re.findall(r"\b\w+(?:Error|Exception)\b", core)
+                    ):
+                        continue
+                uniq_err.append(stripped)
+            if uniq_err or errors:
+                cap = max(2, int(6 * (1 - aggressiveness)))
+                shown = uniq_err[:cap]
+                if aggressiveness >= 0.5 and shown:
+                    # Skip ERR (n): chrome — count is recoverable from listed rows
+                    parts.extend(shown)
+                else:
+                    parts.append(f"ERR ({len(errors)}):")
+                    parts.extend(shown)
 
         if warnings and not (errors and aggressiveness >= 0.5):
             parts.append(f"WARN ({len(warnings)}):")

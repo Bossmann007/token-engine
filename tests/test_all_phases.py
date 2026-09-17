@@ -46,4 +46,4 @@ class TestStaleReadStub:
         ]
         engine = TokenEngine()
         result = engine.optimize_context(items)
-        assert "stale read" in result.content or "superseded" in result.content
+        assert "stale" in result.content or "superseded" in result.content
