@@ -44,12 +44,14 @@ curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/instal
 
 Cursor hook docs: https://github.com/rtk-ai/rtk/tree/master/hooks/cursor (requires `rtk >= 0.23.0` and `jq`).
 
-## Verified on this machine (2026-09)
+## Verified on this machine (2026-09-17)
 
 - Homebrew `rtk` **0.49.0** at `/opt/homebrew/bin/rtk` (≥ 0.23.0 required for Cursor hook).
 - `~/.cursor/hooks.json` already has `preToolUse` → `rtk hook cursor` (matcher `Shell`).
 - Local probe: `git status` rewrites to `rtk git …` with `permission` + `updated_input`.
+- Marker harness: `python scripts/marker_test_mcp_hook.py` → PASS.
 - Do **not** run bare `rtk init -g` here if you want Cursor-only — that dry-run also targets `~/.claude`. Prefer `rtk init -g --agent cursor --hook-only` when reinstalling.
+- **Note:** if `~/.cursor/hooks/compress-*.py` drifts from the repo copy, re-sync manually (agent may ask approval to write `~/.cursor`).
 
 Uninstall Cursor RTK hook only:
 

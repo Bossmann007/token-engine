@@ -22,7 +22,7 @@ engine = TokenEngine.default()  # full stack enabled
 | Stale read prune | `enable_read_lifecycle` | true | headroom |
 | Compression feedback | `enable_compression_feedback` | true | headroom |
 | Cache aligner | `enable_cache_aligner` | true | headroom |
-| Sandbox execute | `enable_sandbox_execute` | true | context-mode |
+| Sandbox execute | `enable_sandbox_execute` | **false** | gated subprocess (not a jail) |
 | Tool schema compaction | `enable_tool_schema_compaction` | true | mcp-compressor |
 | RTK-inspired filters | `enable_rtk_filters` | true | rtk (Python subset) |
 | Jev tool router | `enable_jev_router` | **false** | TypeSafe (opt-in) |

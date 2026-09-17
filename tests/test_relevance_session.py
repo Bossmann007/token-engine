@@ -35,7 +35,7 @@ class TestProactiveSession:
             for it in data["items"]
         ]
         result = engine.optimize_context(items)
-        assert "irrelevant read" in result.content or "CBM:" in result.content
+        assert "irrelevant read" in result.content or "CBM" in result.content
         assert "WebhookHandler" in result.content
         assert "def helper_a" not in result.content
 

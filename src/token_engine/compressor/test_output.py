@@ -6,7 +6,13 @@ import re
 
 from token_engine.compressor.base import CompressResult
 
-_PYTEST = re.compile(r"(=+ FAILURES =+|FAILED|passed|pytest|PASSED|ERROR collecting)", re.M)
+_PYTEST = re.compile(
+    r"(=+ FAILURES =+|ERROR collecting|\bpytest\b|"
+    r"\d+ passed(?: in |\b)|^\d+ failed|"
+    r"::[\w.]+\s+FAILED\b|"
+    r"^PASSED\b|^FAILED\b)",
+    re.M,
+)
 _JEST = re.compile(r"(Test Suites:|^Tests:\s+\d+|^FAIL \S|^\s*● )", re.M)
 _VITEST = re.compile(r"(FAIL\s+\S+|Tests\s+\d+\s+passed|RUN\s+v)", re.M)
 _PLAYWRIGHT = re.compile(r"(\d+ failed|\d+ passed|Error:|TimeoutError|expect\()", re.M)

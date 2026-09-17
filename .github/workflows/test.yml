@@ -22,5 +22,50 @@ jobs:
       - name: Pytest
         run: pytest -q
 
-      - name: Benchmark smoke
+      - name: Benchmark smoke (enforces total, quality, category, and per-fixture floors)
         run: token-engine benchmark --check-baseline
+
+      - name: CLI smoke
+        run: |
+          token-engine rtk-check --json
+          token-engine --help
+
+  test-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: pip install -e ".[dev,api,cursor]"
+
+      - name: Pytest
+        run: pytest -q
+
+  test-jev-extra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install with jev extra
+        run: |
+          pip install -e ".[dev,cursor,jev]" \
+            --extra-index-url https://pypi.typesafe.ai/
+
+      - name: Import TypeSafe SDK path
+        run: |
+          python -c "from token_engine.jev.client import try_typesafe_sdk_client; c=try_typesafe_sdk_client(); print('sdk_client', c is not None)"
+
+      - name: Pytest (no live TypeSafe calls)
+        run: pytest -q tests/test_jev_router.py

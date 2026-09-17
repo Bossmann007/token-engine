@@ -1,0 +1,8 @@
+{
+  "name": "adv_error_buried_in_log",
+  "category": "log",
+  "content_type": "log",
+  "content": "INFO start worker\nINFO heartbeat ok\nINFO heartbeat ok\nINFO heartbeat ok\nINFO heartbeat ok\nINFO heartbeat ok\nINFO cache warm\nINFO cache warm\nINFO cache warm\nINFO queue idle\nERROR PaymentError: signature mismatch for intent pi_9x\nINFO heartbeat ok\nINFO heartbeat ok\nINFO heartbeat ok\nINFO heartbeat ok\nINFO done batch\nINFO done batch\nINFO done batch\n",
+  "must_contain": ["PaymentError", "signature mismatch"],
+  "must_preserve": ["pi_9x"]
+}

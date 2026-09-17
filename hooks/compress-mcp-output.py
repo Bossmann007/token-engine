@@ -87,6 +87,15 @@ def main() -> None:
     if not text or len(text) < 800:
         print("{}")
         return
+    # Never compress error payloads — diagnostics matter more than tokens
+    is_error = False
+    if isinstance(envelope, dict) and envelope.get("isError") is True:
+        is_error = True
+    if payload.get("isError") is True or payload.get("is_error") is True:
+        is_error = True
+    if is_error:
+        print("{}")
+        return
     if _looks_rtk_filtered(text):
         print("{}")
         return
@@ -109,17 +118,31 @@ def main() -> None:
             new_content = []
             replaced = False
             for part in envelope["content"]:
-                if not replaced and isinstance(part, dict) and part.get("type") == "text":
+                if (
+                    not replaced
+                    and isinstance(part, dict)
+                    and part.get("type") == "text"
+                    and isinstance(part.get("text"), str)
+                ):
                     new_content.append({**part, "text": result.content})
                     replaced = True
                 else:
+                    # Preserve non-text / already-handled parts unchanged
                     new_content.append(part)
             if not replaced:
-                new_content = [{"type": "text", "text": result.content}]
+                new_content = list(envelope.get("content") or []) + [
+                    {"type": "text", "text": result.content}
+                ]
             new_env["content"] = new_content
+            # Never invent success: preserve isError / structured flags
+            if "isError" in envelope:
+                new_env["isError"] = envelope["isError"]
             out_obj = new_env
         else:
-            out_obj = {"content": [{"type": "text", "text": result.content}], "isError": False}
+            out_obj = {
+                "content": [{"type": "text", "text": result.content}],
+                "isError": bool(payload.get("is_error") or payload.get("isError")),
+            }
 
         print(
             json.dumps(

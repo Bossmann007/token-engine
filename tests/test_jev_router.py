@@ -143,7 +143,31 @@ class TestRouterLocal:
         assert result.jev_input_tokens == 40
         assert client.calls == 1
 
-    def test_destructive_never_allow_execute(self):
+    def test_explicit_risk_beats_benign_name(self):
+        tools = [
+            {
+                "name": "helper_util",
+                "description": "Looks harmless",
+                "risk_tier": "destructive",
+            },
+            {"name": "read_file", "description": "Read a file", "risk_tier": "read"},
+        ] + [
+            {"name": f"tool_{i}", "description": f"filler {i}", "risk_tier": "read"}
+            for i in range(18)
+        ]
+        cfg = EngineConfig(
+            enable_jev_router=True,
+            jev_min_catalog_tools=5,
+            jev_min_expected_token_savings=0,
+            jev_max_candidates=8,
+        )
+        client = FakeJev("helper_util", confidence=0.99)
+        result = ToolRouter(cfg, client=client).route("run helper util now", tools)
+        assert result.tool_name == "helper_util"
+        assert result.risk_tier == RiskTier.DESTRUCTIVE
+        assert result.allow_execute is False
+
+    def test_destructive_name_never_allow_execute(self):
         tools = [
             {"name": "delete_file", "description": "Delete a path"},
             {"name": "read_file", "description": "Read a file"},
@@ -158,6 +182,47 @@ class TestRouterLocal:
         result = ToolRouter(cfg, client=client).route("delete the production database file", tools)
         assert result.tool_name == "delete_file"
         assert result.allow_execute is False
+
+    def test_duplicate_names_blocked(self):
+        tools = [
+            {"name": "dup", "description": "a"},
+            {"name": "dup", "description": "b"},
+        ]
+        result = ToolRouter(EngineConfig(enable_jev_router=False)).route("dup", tools)
+        assert result.source == "blocked"
+        assert result.tool_name is None
+
+    def test_cache_invalidates_when_description_changes(self):
+        cfg = EngineConfig(enable_jev_router=False, jev_cache_ttl_seconds=60)
+        router = ToolRouter(cfg)
+        tools = [{"name": "search_code", "description": "Search A"}]
+        r1 = router.route("search", tools)
+        tools2 = [{"name": "search_code", "description": "Search B totally different"}]
+        r2 = router.route("search", tools2)
+        assert r1.cache_hit is False
+        # second call different fingerprint → miss
+        assert r2.cache_hit is False
+
+    def test_router_persists_circuit_across_engine_calls(self):
+        from token_engine.core.engine import TokenEngine
+
+        class Boom:
+            def evaluate(self, *a, **k):
+                raise JevUnavailableError("down")
+
+        cfg = EngineConfig(
+            enable_jev_router=True,
+            jev_min_catalog_tools=1,
+            jev_min_expected_token_savings=0,
+            jev_fallback_mode="bm25",
+        )
+        engine = TokenEngine(cfg)
+        tools = _tools(20)
+        boom = Boom()
+        for _ in range(3):
+            engine.route_tool("list github issues", tools, client=boom)
+        assert engine._tool_router is not None
+        assert engine._tool_router._circuit._failures >= 3
 
     def test_unavailable_falls_back(self):
         class Boom:

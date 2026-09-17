@@ -22,6 +22,7 @@ from token_engine.compressor.context_helpers import (
     knapsack_stub,
     strip_line_gutters,
 )
+from token_engine.compressor.session_semantic import SessionSemanticCompactor
 from token_engine.compressor.content_router import route_and_join
 from token_engine.compressor.cross_turn_dedup import DedupBlock, dedup_blocks
 from token_engine.compressor.deduplicator import Deduplicator
@@ -205,13 +206,27 @@ class ContextOptimizer:
         for item, orig in zip(optimized_items, selected, strict=True):
             output_parts.append(self._format_output_item(item, original_tokens=orig_tokens_map.get(orig.id)))
 
-        output = "\n\n".join(output_parts)
+        legacy_output = "\n\n".join(output_parts)
+        output = legacy_output
+        semantic_used = False
+        if (
+            self._config.enable_session_semantic_compactor
+            and len(optimized_items) >= 2
+        ):
+            semantic = SessionSemanticCompactor(quality=self._config.quality_level).render(
+                optimized_items, task_query=task_query
+            )
+            # Fail-closed: never expand vs legacy join
+            if self._tokenizer.count(semantic) < self._tokenizer.count(legacy_output):
+                output = semantic
+                semantic_used = True
         optimized_tokens = self._tokenizer.count(output)
         latency_ms = (time.perf_counter() - start) * 1000
 
         stats = CompressionStats.compute(
             "", output, original_tokens, optimized_tokens,
-            strategy="context_optimizer", lossless=False, latency_ms=latency_ms,
+            strategy="session_semantic" if semantic_used else "context_optimizer",
+            lossless=False, latency_ms=latency_ms,
         )
 
         return OptimizationResult(
@@ -225,6 +240,7 @@ class ContextOptimizer:
                 "items_out": len(optimized_items),
                 "live_zone_mode": self._config.live_zone_mode,
                 "knapsack_dropped": knapsack_dropped,
+                "session_semantic": semantic_used,
                 "cache_warnings": cache_warnings[:10],
                 "feedback": self._feedback.stats() if self._feedback else {},
             },
@@ -289,7 +305,11 @@ class ContextOptimizer:
                 content = dedup.content
 
         tool_comp = self._compressors[-1]
-        if self._config.enable_tool_output_compression:
+        if self._config.enable_tool_output_compression and item.content_type not in (
+            ContentType.LOG,
+            ContentType.JSON,
+            ContentType.CODE,
+        ):
             tool_result = tool_comp.compress(content, aggressiveness=aggressiveness, query=task_query)
             if tool_result.compressed and tool_result.strategy != "tool_output":
                 content = tool_result.content
@@ -316,12 +336,10 @@ class ContextOptimizer:
             and chars_saved >= self._config.ccr_min_chars_saved
             and token_saved >= ccr_min_tokens
         ):
+            # Store for caveman_retrieve / metadata — do not inline markers into the
+            # prompt (they were costing ~90tok corpus-wide for little recovery value).
             handle = self._ccr.store(item.content, metadata={"strategy": strategy, "item_id": item.id})
-            marker = self._ccr.marker(handle, chars_dropped=chars_saved)
-            marked = f"{content}\n{marker}"
-            if self._tokenizer.count(marked) < original_token_count:
-                content = marked
-                ccr_handle = handle
+            ccr_handle = handle
 
         if self._config.fail_closed:
             saved_ratio = token_saved / original_token_count if original_token_count else 0
@@ -462,7 +480,7 @@ class ContextOptimizer:
         self, item: ContentItem, base: float, bm25_score: float,
     ) -> float:
         tier_map = {
-            RelevanceTier.CRITICAL: 0.25,
+            RelevanceTier.CRITICAL: min(0.55, base),
             RelevanceTier.HIGH: base,
             RelevanceTier.MEDIUM: base,
             RelevanceTier.LOW: min(0.85, base + 0.25),
@@ -477,7 +495,13 @@ class ContextOptimizer:
         return agg
 
     def _format_output_item(self, item: ContentItem, *, original_tokens: int | None = None) -> str:
-        if item.metadata.get("low_relevance_stub"):
+        if item.metadata.get("low_relevance_stub") or item.metadata.get("knapsack_dropped"):
+            return item.content
+        stripped = (item.content or "").strip()
+        if stripped.startswith("[dropped:") or stripped.startswith("[omit:"):
+            return item.content
+        # Single-blob optimize uses id=input — savings header is pure overhead on net metric
+        if item.id == "input" and self._config.compact_output_headers:
             return item.content
         if item.content_type == ContentType.MESSAGE and (item.source in ("user", "system") or item.metadata.get("content_role") in ("user", "system", "instruction")):
             return item.content

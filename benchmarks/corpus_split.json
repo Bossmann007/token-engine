@@ -1,0 +1,32 @@
+{
+  "description": "Fixture corpus split for compression experiments. holdout must not drive heuristics.",
+  "train": [
+    "hybrid_knapsack_session",
+    "large_agent_session",
+    "agent_context_session",
+    "session_unrelated_reads",
+    "app_log",
+    "vite_build",
+    "npm_install",
+    "git_status"
+  ],
+  "validation": [
+    "session_reread_chain",
+    "read_delta_session",
+    "pytest_failures",
+    "cargo_build",
+    "docker_build",
+    "large_json_api_response"
+  ],
+  "holdout": [
+    "cross_turn_reread",
+    "metrics_timeseries",
+    "jest_failures",
+    "pnpm_install",
+    "adv_error_buried_in_log",
+    "adv_near_duplicate_files",
+    "adv_json_error_string"
+  ],
+  "real_world": [],
+  "note": "Do not raise CI floors from holdout peaks. Add adversarial cases under benchmarks/fixtures/holdout/ later."
+}

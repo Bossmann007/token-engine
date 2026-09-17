@@ -18,7 +18,8 @@ mcp = MCPServer(
     "token-engine",
     instructions=(
         "Full token optimization. Use codebase-memory for code exploration. "
-        "caveman_compress on large outputs. token_engine_sandbox for bulk analysis. "
+        "caveman_compress on large outputs. "
+        "token_engine_run_python is disabled by default (not a security sandbox). "
         "token_engine_compact_tools for MCP schema bloat."
     ),
 )
@@ -259,15 +260,39 @@ def token_engine_get_tool_schema(session_id: str, tool_name: str) -> dict[str, A
     return {"schema": schema, "stats": stats}
 
 
-@mcp.tool(name="token_engine_sandbox")
-def token_engine_sandbox(code: str, timeout: int = 30) -> dict[str, Any]:
-    """Run Python outside context; return compressed stdout only."""
-    result = execute_and_compress(code, timeout=timeout, config=EngineConfig.default())
+@mcp.tool(name="token_engine_run_python")
+def token_engine_run_python(code: str, timeout: int = 15) -> dict[str, Any]:
+    """Run Python in a scrubbed subprocess (NOT a sandbox). Disabled by default.
+
+    Requires enable_sandbox_execute=true in EngineConfig / defaults. No filesystem
+    or network isolation — host process risk remains.
+    """
+    from token_engine.sandbox.executor import ExecutionDisabledError
+
+    config = EngineConfig.default()
+    if not config.enable_sandbox_execute:
+        return {
+            "error": "execution_disabled",
+            "enabled": False,
+            "message": (
+                "token_engine_run_python is disabled (enable_sandbox_execute=false). "
+                "This is not an isolated sandbox."
+            ),
+            "isolation": "none",
+        }
+    try:
+        result = execute_and_compress(code, timeout=timeout, config=config)
+    except ExecutionDisabledError as exc:
+        return {"error": "execution_disabled", "enabled": False, "message": str(exc), "isolation": "none"}
+    except ValueError as exc:
+        return {"error": "invalid_request", "message": str(exc), "isolation": "none"}
     return {
         "compressed_output": result.compressed_stdout,
         "returncode": result.returncode,
         "tokens_saved": result.tokens_saved,
         "stderr_preview": result.stderr[:500] if result.stderr else "",
+        "isolation": result.isolation,
+        "enabled": True,
     }
 
 

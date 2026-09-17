@@ -19,6 +19,8 @@ class TokenEngine:
         self.config = config or EngineConfig()
         self.tokenizer = create_tokenizer(self.config.encoding)
         self._optimizer = ContextOptimizer(self.config, self.tokenizer)
+        self._tool_router = None  # lazy ToolRouter; survives across route_tool calls
+
 
     def optimize(self, text: str, *, content_type: str = "") -> OptimizationResult:
         return self._optimizer.optimize_text(text, content_type=content_type)
@@ -97,13 +99,39 @@ class TokenEngine:
         *,
         allowlist: set[str] | None = None,
         denylist: set[str] | None = None,
+        client=None,
+        advisory_mode: bool = True,
     ):
-        """BM25 (+ optional Jev) tool pick. Does not execute tools; selection only."""
+        """BM25 (+ optional Jev) tool pick. Does not execute tools; selection only.
+
+        Reuses a persistent ToolRouter so cache and circuit breaker survive calls.
+        Pass a new client only via reset_tool_router() + route_tool(client=...), or
+        construct ToolRouter directly in tests.
+        """
         from token_engine.jev.router import ToolRouter
 
-        return ToolRouter(self.config, counter=self.tokenizer).route(
-            intent, tools, allowlist=allowlist, denylist=denylist
-        )
+        if self._tool_router is None:
+            self._tool_router = ToolRouter(
+                self.config,
+                client=client,
+                counter=self.tokenizer,
+                advisory_mode=advisory_mode,
+            )
+        elif client is not None and client is not self._tool_router._client:
+            # Rebuild so advisory_mode/config stay consistent with construction
+            self._tool_router = ToolRouter(
+                self.config,
+                client=client,
+                counter=self.tokenizer,
+                advisory_mode=advisory_mode,
+            )
+        return self._tool_router.route(intent, tools, allowlist=allowlist, denylist=denylist)
+
+
+    def reset_tool_router(self) -> None:
+        """Drop cached router (config/catalog policy changes)."""
+        self._tool_router = None
+
 
     def retrieve_compressed(self, handle: str) -> str | None:
         return self._optimizer.retrieve_ccr(handle)

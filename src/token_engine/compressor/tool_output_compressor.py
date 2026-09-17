@@ -34,6 +34,10 @@ class ToolOutputCompressor(Compressor):
     def compress(self, text: str, *, aggressiveness: float = 0.5, query: str = "") -> CompressResult:
         tool_hint = self._detect_tool(text)
 
+        # Timestamped application logs → LogCompressor (don't let rtk:traceback steal them)
+        if re.search(r"(?m)^\d{4}-\d{2}-\d{2}[T ].*\b(ERROR|WARN|INFO|DEBUG)\b", text):
+            return self._log.compress(text, aggressiveness=aggressiveness, query=query)
+
         if tool_hint == "git":
             return self._compress_git(text, aggressiveness, query=query)
         test_runner = detect_test_runner(text)
@@ -55,6 +59,10 @@ class ToolOutputCompressor(Compressor):
                 return rtk_filters.compress_rtk_tool(text, rtk_tool, aggressiveness=aggressiveness)
 
         # Fallback to log compressor for generic output
+        # Preserve dense JS/node stacks — LogCompressor would crush frames
+        if text.count(" at ") >= 10 and re.search(r"(?m)^\s+at\s+", text):
+            return CompressResult(content=text, strategy="node_stack", compressed=False)
+
         detected = detect_content_type(text)
         if detected in (ContentType.LOG, ContentType.TERMINAL):
             return self._log.compress(text, aggressiveness=aggressiveness, query=query)
@@ -66,7 +74,14 @@ class ToolOutputCompressor(Compressor):
             return "git"
         if re.search(r"(Test Suites:|^FAIL \S|^\s*● )", text, re.MULTILINE):
             return "jest"
-        if re.search(r"(=+ FAILURES =+|FAILED|passed|pytest|PASSED|ERROR collecting)", text, re.MULTILINE):
+        if re.search(
+            r"(=+ FAILURES =+|ERROR collecting|\bpytest\b|"
+            r"\d+ passed(?: in |\b)|^\d+ failed|"
+            r"::[\w.]+\s+FAILED\b|"
+            r"^PASSED\b|^FAILED\b)",
+            text,
+            re.MULTILINE,
+        ):
             return "pytest"
         if re.search(r"^(npm WARN|npm ERR|added \d+ packages|up to date)", text, re.MULTILINE):
             return "npm"
@@ -109,10 +124,15 @@ class ToolOutputCompressor(Compressor):
                         parts.append(f"untracked: {len(files)} files (none task-relevant)")
                         continue
                     signal = relevant
+                if not signal:
+                    parts.append(f"untracked: {len(files)} files ({len(noise)} noise omitted)")
+                    continue
                 parts.append(f"{name}: {len(files)} files ({len(noise)} noise omitted)")
-                parts.extend(f"  {f}" for f in signal[:max_files])
-                if len(signal) > max_files:
-                    parts.append(f"  ... {len(signal) - max_files} more")
+                # Cap listed signal hard — names already summarized in count line
+                show = min(max_files, 2 if aggressiveness >= 0.4 else max_files)
+                parts.extend(f"  {f}" for f in signal[:show])
+                if len(signal) > show:
+                    parts.append(f"  ... {len(signal) - show} more")
                 continue
 
             visible = files
@@ -121,15 +141,15 @@ class ToolOutputCompressor(Compressor):
                 if not visible:
                     parts.append(f"{name}: {len(files)} files (none task-relevant)")
                     continue
-                if len(visible) < len(files):
-                    parts.append(f"{name}: {len(visible)}/{len(files)} task-relevant")
-                else:
-                    parts.append(f"{name}: {len(files)} files")
+            # Dense: "modified: a.py, b.py" beats header + indented list
+            clean = [re.sub(r"^(?:modified|new file|deleted):\s*", "", f).strip() for f in visible]
+            if len(clean) <= 4:
+                parts.append(f"{name}: {', '.join(clean)}")
             else:
                 parts.append(f"{name}: {len(files)} files")
-            parts.extend(f"  {f}" for f in visible[:max_files])
-            if len(visible) > max_files:
-                parts.append(f"  ... {len(visible) - max_files} more")
+                parts.extend(f"  {f}" for f in clean[:max_files])
+                if len(clean) > max_files:
+                    parts.append(f"  ... {len(clean) - max_files} more")
 
         out = "\n".join(parts) if parts else text
         if len(out) >= len(text):
@@ -175,16 +195,24 @@ class ToolOutputCompressor(Compressor):
         max_failures = max(2, int(6 * (1 - aggressiveness * 0.5)))
         parts: list[str] = []
         if summary:
-            parts.extend(summary[:3])
+            # Prefer "N failed" over full timing line
+            compact_sum: list[str] = []
+            for s in summary[:3]:
+                m = re.search(r"(\d+ failed)", s, re.I)
+                if m and "passed" in s.lower():
+                    compact_sum.append(m.group(1))
+                else:
+                    compact_sum.append(s)
+            parts.extend(compact_sum)
         if failure_sections:
-            parts.append(f"=== FAILURE DETAILS ({len(failure_sections)}) ===")
+            parts.append(f"FAIL ({len(failure_sections)}):")
             parts.extend(failure_sections[:max_failures])
         else:
             if failed_tests:
-                parts.append(f"=== FAILED TESTS ({len(failed_tests)}) ===")
+                parts.append(f"FAILED ({len(failed_tests)}):")
                 parts.extend(failed_tests[:max_failures])
             if error_lines:
-                parts.append(f"=== ERROR LINES ({len(error_lines)}) ===")
+                parts.append(f"ERR ({len(error_lines)}):")
                 parts.extend(error_lines[:max_failures])
 
         out = "\n".join(parts)
@@ -255,5 +283,25 @@ def _trim_pytest_failure_section(lines: list[str]) -> str:
         stripped = line.strip()
         if re.match(r"^=+$", stripped) or re.match(r"^_{5,}$", stripped):
             continue
-        kept.append(line)
-    return "\n".join(kept).strip()
+        # Keep: test name, assert/diff, traceback file refs, Error types
+        if (
+            stripped.startswith(("def test_", ">", "E ", "E\t", "-", "+"))
+            or "Error" in stripped
+            or "Exception" in stripped
+            or re.search(r"\.\w+:\d+", stripped)
+            or (stripped.startswith("assert ") or " assert " in stripped)
+            or re.match(r"^test_\w+", stripped)
+        ):
+            # Drop setup body lines (`user = create_user...`) unless assert/error
+            if re.match(r"^[a-z_][a-z0-9_]*\s*=", stripped) and "assert" not in stripped:
+                continue
+            # Drop def line body chrome — keep name via test_xxx in path/assert
+            if stripped.startswith("def test_") and stripped.endswith(":"):
+                # keep bare name only
+                kept.append(stripped[4:].rstrip(":"))
+                continue
+            if stripped.startswith(">"):
+                kept.append(stripped.lstrip("> ").strip())
+                continue
+            kept.append(stripped)
+    return "\n".join(kept).strip() if kept else "\n".join(l.strip() for l in lines if l.strip())

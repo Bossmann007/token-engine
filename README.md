@@ -107,6 +107,7 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 | [BENCHMARKS.md](docs/BENCHMARKS.md) | Baseline gates |
 | [RTK.md](docs/RTK.md) | Python RTK filters + optional official binary |
 | [JEV.md](docs/JEV.md) | Opt-in TypeSafe Jev tool routing (harness) |
+| [SECURITY.md](docs/SECURITY.md) | Executor limits, Jev privacy, architecture honesty |
 | [cursor-kit](https://github.com/Bossmann007/cursor-kit) | Templates, hooks, `/setup-project` |
 
 ## License

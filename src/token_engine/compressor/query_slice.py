@@ -8,7 +8,34 @@ from pathlib import PurePosixPath
 IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+")
 CLASS_RE = re.compile(r"^(\s*)class\s+(\w+)")
 DEF_RE = re.compile(r"^(\s*)(?:async\s+)?def\s+(\w+)\s*\(")
-BUG_CONTEXT_TERMS = frozenset({"special", "character", "invalid", "encode", "unicode", "regex"})
+BUG_CONTEXT_TERMS = frozenset(
+    {
+        "special",
+        "character",
+        "invalid",
+        "encode",
+        "unicode",
+        "regex",
+        "signature",
+        "validation",
+        "verify",
+        "hmac",
+        "auth",
+        "password",
+        "webhook",
+    }
+)
+
+# Query term expansions so "signature" matches `sig=` / verify()
+TERM_SYNONYMS: dict[str, frozenset[str]] = {
+    "signature": frozenset({"sig", "sign", "hmac", "digest"}),
+    "validation": frozenset({"validate", "verify", "check"}),
+    "validate": frozenset({"validation", "verify"}),
+    "verify": frozenset({"validation", "signature", "sig"}),
+    "password": frozenset({"passwd", "pwd"}),
+    "delete": frozenset({"remove", "destroy"}),
+    "error": frozenset({"exception", "fail", "failed"}),
+}
 
 
 def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple[str, bool]:
@@ -18,6 +45,21 @@ def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple
         stem = PurePosixPath(segment.replace("\\", "/")).stem.lower()
         if len(stem) > 2:
             terms.add(stem)
+    # Split snake_case / camel fragments so test_delete_user → delete, user
+    expanded: set[str] = set()
+    for term in terms:
+        expanded.add(term)
+        if "_" in term:
+            expanded.update(p for p in term.split("_") if len(p) > 2)
+        parts = re.findall(r"[a-z][a-z0-9]+|[A-Z][a-z0-9]+", term)
+        expanded.update(p.lower() for p in parts if len(p) > 2)
+    terms = expanded
+    core_terms = set(terms)
+    # Synonym expansion (signature → sig, validation → verify)
+    with_syn: set[str] = set(terms)
+    for term in terms:
+        with_syn.update(TERM_SYNONYMS.get(term, ()))
+    terms = with_syn
     if not terms or len(code) < min_chars:
         return code, False
 
@@ -62,16 +104,49 @@ def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple
                 for sub in block.children
             ]
             max_child = max((score for _, score in child_scores), default=0)
-            keep_floor = max(1, max_child - 1) if max_child > 2 else threshold
+            # Bug-fix queries: keep only the best method(s). Otherwise allow near-ties.
+            if terms & BUG_CONTEXT_TERMS and max_child > 0:
+                keep_floor = max_child
+            else:
+                keep_floor = max(1, max_child - 1) if max_child > 2 else threshold
+            # Clear winner (e.g. delete_user >> list_users): do not keep near-miss signatures
+            ranked_scores = sorted((score for _, score in child_scores), reverse=True)
+            if len(ranked_scores) >= 2 and ranked_scores[0] >= ranked_scores[1] + 3:
+                keep_floor = max(keep_floor, ranked_scores[0])
+            omitted_methods: list[str] = []
+            omitted_excerpts: list[str] = []
+            kept_blocks: list = []
             for sub, score in child_scores:
                 if score >= threshold and score >= keep_floor:
-                    parts.extend(sub.lines)
+                    kept_blocks.append(sub)
                 else:
-                    parts.append(f"{sub.indent}{sub.lines[0].strip()}  # ...")
+                    omitted_methods.append(sub.name)
+            kept_so_far = "\n".join(parts).lower()
+            for sub in kept_blocks:
+                densified = _densify_method(sub.lines)
+                parts.extend(densified)
+                kept_so_far += "\n" + "\n".join(densified).lower()
+            for sub, score in child_scores:
+                if score >= threshold and score >= keep_floor:
+                    continue
+                excerpt = _query_hit_excerpt(sub, terms, already=kept_so_far)
+                if excerpt:
+                    omitted_excerpts.append(excerpt[:60])
                     changed = True
-            parts.append("")
-            if any(score < keep_floor or score < threshold for _, score in child_scores):
+            if omitted_methods:
                 changed = True
+                indent = child_scores[0][0].indent if child_scores else "    "
+                # Skip pure boilerplate omit lists (__init__/login only) unless excerpt carries a must-keep term
+                interesting = [m for m in omitted_methods if m not in {"__init__", "__repr__", "__str__"}]
+                if interesting or omitted_excerpts:
+                    names = (interesting or omitted_methods)[:2]
+                    extra = len(interesting or omitted_methods) - len(names)
+                    name_s = ", ".join(names) + (f"+{extra}" if extra else "")
+                    if omitted_excerpts:
+                        parts.append(f"{indent}# - {name_s} · {omitted_excerpts[0]}")
+                    else:
+                        parts.append(f"{indent}# - {name_s}")
+            parts.append("")
             continue
 
         score = _score_block(block, terms)
@@ -80,17 +155,94 @@ def slice_code_by_query(code: str, query: str, *, min_chars: int = 200) -> tuple
             if block.kind == "function":
                 parts.append("")
         else:
-            sig = block.lines[0].strip()
-            parts.append(f"{block.indent}{sig}  # ...")
-            changed = True
+            if block.kind in {"function", "method"}:
+                sig = block.lines[0].strip()
+                parts.append(f"{block.indent}{sig}  # ...")
+            else:
+                # module-level noise (logger = …) — drop entirely
+                changed = True
 
     if not changed:
         return code, False
 
     out = "\n".join(parts).strip()
-    if not _preserves_query_terms(out, terms):
+    out = _drop_unused_imports(out)
+    stripped = _strip_type_annotations(out)
+    if stripped != out:
+        out = stripped
+        changed = True
+    out = re.sub(r"\n{2,}", "\n", out)
+    if not _preserves_query_terms(out, core_terms):
         return code, False
     return out, True
+
+
+_ANN_PARAM = re.compile(
+    r":\s*(?:int|str|bytes|bool|dict|list|float|None|[A-Z]\w*(?:\[[^\]]+\])?)(?=\s*[,)=])"
+)
+_ANN_RETURN = re.compile(r"\)\s*->\s*[^:\n]+:")
+
+
+def _strip_type_annotations(code: str) -> str:
+    """Drop common type hints — symbols stay, tokens go."""
+    out = _ANN_PARAM.sub("", code)
+    return _ANN_RETURN.sub("):", out)
+
+
+def _densify_method(lines: list[str]) -> list[str]:
+    """Collapse short methods onto fewer lines."""
+    if len(lines) < 2:
+        return list(lines)
+    body = [l for l in lines[1:] if l.strip() and not l.strip().startswith("#")]
+    if len(body) == 1:
+        stmt = body[0].strip()
+        if stmt.startswith(("return ", "raise ", "pass")) or "=" in stmt:
+            return [f"{lines[0].rstrip()} {stmt}"]
+    # assign + return-that-name → inline
+    if len(body) == 2:
+        a, b = body[0].strip(), body[1].strip()
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$", a)
+        if m and b.startswith("return ") and m.group(1) in b:
+            name, expr = m.group(1), m.group(2)
+            # only inline if name appears once in return
+            if b.count(name) == 1:
+                inlined = b.replace(name, f"({expr})", 1)
+                return [f"{lines[0].rstrip()} {inlined}"]
+    return list(lines)
+
+
+def _drop_unused_imports(code: str) -> str:
+    lines = code.splitlines()
+    # Ignore comments when deciding if an import name is used
+    body_lines = []
+    for l in lines:
+        if IMPORT_RE.match(l):
+            continue
+        body_lines.append(l.split("#", 1)[0])
+    body_l = "\n".join(body_lines).lower()
+    kept: list[str] = []
+    for line in lines:
+        if not IMPORT_RE.match(line):
+            kept.append(line)
+            continue
+        names = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", line)
+        names = [n for n in names if n.lower() not in {"import", "from", "as"}]
+        if any(n.lower() in body_l for n in names):
+            kept.append(line)
+    return "\n".join(kept).strip()
+
+
+def _query_hit_excerpt(block: CodeBlock, terms: set[str], *, already: str = "") -> str | None:
+    """Pull one omitted line that still carries a query term missing from kept code."""
+    for line in block.lines[1:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        lower = stripped.lower()
+        novel = [t for t in terms if len(t) > 3 and t in lower and t not in already]
+        if novel:
+            return stripped[:100]
+    return None
 
 
 def _preserves_query_terms(text: str, terms: set[str]) -> bool:
@@ -105,9 +257,11 @@ def _bug_relevance_boost(block: CodeBlock, terms: set[str]) -> int:
     body = "\n".join(block.lines).lower()
     boost = 0
     name = block.name.lower()
-    if "validate" in name or "sanitize" in name or "check" in name:
+    if "validate" in name or "sanitize" in name or "check" in name or "verify" in name:
         boost += 4
     if "re.match" in body or "regex" in body or "special" in body:
+        boost += 3
+    if "hmac" in body or "compare_digest" in body or "signature" in body or " sig" in body:
         boost += 3
     return boost
 
@@ -117,7 +271,9 @@ def _score_block(block: "CodeBlock", terms: set[str]) -> int:
     body = "\n".join(block.lines).lower()
     score = 0
     for term in terms:
-        if term in name:
+        if term == name:
+            score += 8
+        elif term in name:
             score += 3
         if term in body:
             score += 1

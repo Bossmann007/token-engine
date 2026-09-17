@@ -38,6 +38,9 @@ Project `.cursor/mcp.json` mirrors global — token-engine + codebase-memory.
 | 2026-09-17 | GitHub Issues as agent issue tracker | Matt Pocock skills use `gh`; repo is Bossmann007/token-engine |
 | 2026-09-17 | Jev router opt-in only; no advisory MCP route tool | Cursor already injects MCP schemas; Jev helps harness/shortlist paths, not decorative MCP |
 | 2026-09-17 | Keep Python RTK filters + optional official binary | No hard `rtk` dependency; honor enable flag; document Cursor hooks |
+| 2026-09-17 | `enable_sandbox_execute` default false; not a real jail | Subprocess runner only; MCP rejects when disabled |
+| 2026-09-17 | 82% is milestone not ceiling; maximize net economia_liquida | User objective; quality/safety constraints dominate raw % |
+| 2026-09-17 | SessionSemanticCompactor default on; fail-closed vs legacy join | Top remaining tokens were session filler + header overhead |
 
 
 ## Current work

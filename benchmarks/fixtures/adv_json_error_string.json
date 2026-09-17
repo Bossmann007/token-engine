@@ -1,0 +1,8 @@
+{
+  "name": "adv_json_error_string",
+  "category": "blob",
+  "content_type": "json",
+  "content": "{\"ok\":true,\"items\":[{\"id\":1,\"msg\":\"all good\"},{\"id\":2,\"msg\":\"all good\"},{\"id\":3,\"msg\":\"all good\"},{\"id\":4,\"msg\":\"ERROR: timeout talking to redis\"},{\"id\":5,\"msg\":\"all good\"},{\"id\":6,\"msg\":\"all good\"},{\"id\":7,\"msg\":\"all good\"},{\"id\":8,\"msg\":\"all good\"}],\"count\":8}",
+  "must_contain": ["count", "redis"],
+  "must_preserve": ["ERROR: timeout"]
+}

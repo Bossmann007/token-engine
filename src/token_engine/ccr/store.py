@@ -51,13 +51,9 @@ class CCRStore:
         return entry.content
 
     def marker(self, handle: str, *, rows_dropped: int = 0, chars_dropped: int = 0) -> str:
-        parts = [f"<<ccr:{handle}"]
-        if rows_dropped:
-            parts.append(f" {rows_dropped}_rows")
-        if chars_dropped:
-            parts.append(f" {chars_dropped}_chars")
-        parts.append(">>")
-        return "".join(parts)
+        # Compact recovery tag — drop counts from the prompt (still in store metadata)
+        _ = rows_dropped, chars_dropped
+        return f"<<ccr:{handle}>>"
 
     def _evict_oldest(self) -> None:
         if not self._store:

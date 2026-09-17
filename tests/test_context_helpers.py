@@ -40,9 +40,10 @@ class TestContextHelpers:
 
     def test_git_noise_filter(self):
         signal, noise = filter_git_noise_paths(
-            ["debug.log", "node_modules/pkg", ".pytest_cache/x", "src/auth/login.py"]
+            ["debug.log", "node_modules/pkg", ".pytest_cache/x", "src/auth/login.py", "tmp_output.txt"]
         )
-        assert "debug.log" in signal
+        assert "debug.log" in noise
+        assert "tmp_output.txt" in noise
         assert "src/auth/login.py" in signal
         assert any("node_modules" in path for path in noise)
 

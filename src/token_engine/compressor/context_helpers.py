@@ -31,8 +31,10 @@ GIT_NOISE_PATH = re.compile(
     r"(?:^|/)(?:node_modules|__pycache__|\.pytest_cache|\.venv|venv|dist|coverage|"
     r"\.idea|\.vscode|\.mypy_cache|\.ruff_cache|build|\.tox|\.nox|htmlcov|"
     r"\.egg-info|\.coverage)(?:/|$)|"
-    r"^(?:\*\.(?:pyc|pyo|swp|swo)|\*~|\.DS_Store|Thumbs\.db|"
-    r"package-lock\.json|yarn\.lock|pip-log\.txt|pip-delete-this-directory\.txt)$",
+    r"(?:^|/)(?:debug\.log|tmp_[\w.-]+|\.env(?:\.[\w.-]+)?)$|"
+    r"^(?:\*\.(?:pyc|pyo|swp|swo|egg-info)|\*~|\.DS_Store|Thumbs\.db|"
+    r"package-lock\.json|yarn\.lock|pip-log\.txt|pip-delete-this-directory\.txt)"
+    r"/?$",
     re.IGNORECASE,
 )
 

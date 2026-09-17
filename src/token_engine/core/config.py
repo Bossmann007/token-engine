@@ -64,9 +64,10 @@ class EngineConfig(BaseModel):
     enable_read_lifecycle: bool = True
     enable_compression_feedback: bool = True
     enable_cache_aligner: bool = True
-    enable_sandbox_execute: bool = True
+    enable_sandbox_execute: bool = False  # gated subprocess runner — NOT a real sandbox
     enable_rtk_filters: bool = True
     enable_cbm_bridge: bool = True
+    enable_session_semantic_compactor: bool = True
 
     # Optional TypeSafe Jev tool routing (off by default — external API)
     enable_jev_router: bool = False
@@ -155,7 +156,7 @@ class EngineConfig(BaseModel):
         levels = {
             CompressionLevel.NONE: 0.0,
             CompressionLevel.LIGHT: 0.25,
-            CompressionLevel.MODERATE: 0.55,
+            CompressionLevel.MODERATE: 0.85,
             CompressionLevel.AGGRESSIVE: 0.85,
         }
         return levels[self.effective_compression_level()]

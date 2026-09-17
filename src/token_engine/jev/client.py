@@ -65,9 +65,15 @@ class HttpJevClient:
             with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
                 payload = json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
+            # Do not include response body (may contain sensitive upstream data)
             raise JevUnavailableError(f"TypeSafe HTTP {exc.code}") from exc
+        except TimeoutError as exc:
+            raise JevUnavailableError("TypeSafe request timed out") from exc
         except Exception as exc:  # noqa: BLE001 — boundary: network
-            raise JevUnavailableError(str(exc)) from exc
+            raise JevUnavailableError(f"TypeSafe transport error: {type(exc).__name__}") from exc
+
+        if not isinstance(payload, dict) or "answers" not in payload:
+            raise JevUnavailableError("TypeSafe response missing answers")
 
         usage = payload.get("usage") or {}
         return JevEvaluateResult(
@@ -94,51 +100,62 @@ def try_typesafe_sdk_client() -> JevClient | None:
             model: str,
             timeout_seconds: float,
         ) -> JevEvaluateResult:
-            # Map dict questions into SDK objects when available; fall back to HTTP shape.
-            # Keep coupling thin: prefer HTTP if SDK API diverges.
-            _ = timeout_seconds
             if not os.environ.get("TYPESAFE_API_KEY"):
                 raise JevUnavailableError("TYPESAFE_API_KEY is not set")
-            client = TypeSafeClient()
-            try:
-                # SDK expects typed Question objects; convert Choice dicts when possible.
-                from typesafe_sdk import Choice  # type: ignore[import-not-found]
 
-                typed: dict[str, Any] = {}
-                for key, q in questions.items():
-                    if q.get("type") == "choice":
-                        typed[key] = Choice(
-                            instructions=q.get("instructions", ""),
-                            criteria=q.get("criteria") or {},
-                        )
-                    else:
-                        typed[key] = q
-                response = client.system_one(state=state, questions=typed, model=model)
-            finally:
-                close = getattr(client, "close", None)
-                if callable(close):
-                    close()
+            def _call() -> JevEvaluateResult:
+                from typesafe_sdk import Choice, TypeSafeClient  # type: ignore[import-not-found]
 
-            answers: dict[str, Any] = {}
-            choices = getattr(response, "choices", None) or getattr(response, "answers", {})
-            if hasattr(choices, "items"):
-                for key, ans in choices.items():
-                    if hasattr(ans, "choice"):
-                        answers[key] = {
-                            "type": "choice",
-                            "choice": ans.choice,
-                            "confidence": float(getattr(ans, "confidence", 0.0) or 0.0),
-                            "probabilities": dict(getattr(ans, "probabilities", {}) or {}),
-                        }
-                    else:
-                        answers[key] = ans
-            usage = getattr(response, "usage", None)
-            return JevEvaluateResult(
-                answers=answers,
-                usage_input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
-                usage_output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
-                model=model,
-            )
+                client = TypeSafeClient()
+                try:
+                    typed: dict[str, Any] = {}
+                    for key, q in questions.items():
+                        if q.get("type") == "choice":
+                            typed[key] = Choice(
+                                instructions=q.get("instructions", ""),
+                                criteria=q.get("criteria") or {},
+                            )
+                        else:
+                            typed[key] = q
+                    response = client.system_one(state=state, questions=typed, model=model)
+                finally:
+                    close = getattr(client, "close", None)
+                    if callable(close):
+                        close()
+
+                answers: dict[str, Any] = {}
+                choices = getattr(response, "choices", None) or getattr(response, "answers", {})
+                if hasattr(choices, "items"):
+                    for key, ans in choices.items():
+                        if hasattr(ans, "choice"):
+                            answers[key] = {
+                                "type": "choice",
+                                "choice": ans.choice,
+                                "confidence": float(getattr(ans, "confidence", 0.0) or 0.0),
+                                "probabilities": dict(getattr(ans, "probabilities", {}) or {}),
+                            }
+                        else:
+                            answers[key] = ans
+                usage = getattr(response, "usage", None)
+                return JevEvaluateResult(
+                    answers=answers,
+                    usage_input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+                    usage_output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                    model=model,
+                )
+
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(_call)
+                try:
+                    return fut.result(timeout=max(0.1, float(timeout_seconds)))
+                except FuturesTimeout as exc:
+                    raise JevUnavailableError("typesafe SDK call timed out") from exc
+                except JevUnavailableError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — boundary
+                    raise JevUnavailableError(f"typesafe SDK error: {type(exc).__name__}") from exc
 
     return SdkJevClient()
 

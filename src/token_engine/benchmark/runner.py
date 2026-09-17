@@ -35,12 +35,14 @@ class BenchmarkRunner:
         self.config = config or EngineConfig()
         self.engine = TokenEngine(self.config)
 
-    def run_all(self, fixtures_dir: Path) -> list[BenchmarkResult]:
+    def run_all(self, fixtures_dir: Path, *, include_holdout: bool = False) -> list[BenchmarkResult]:
         results: list[BenchmarkResult] = []
         if not fixtures_dir.exists():
             return results
 
         for path in sorted(fixtures_dir.glob("*.json")):
+            if not include_holdout and path.stem.startswith("adv_"):
+                continue
             data = json.loads(path.read_text(encoding="utf-8"))
             if "items" not in data and "content" not in data:
                 continue
@@ -48,6 +50,16 @@ class BenchmarkRunner:
         for path in sorted(fixtures_dir.glob("*.txt")):
             results.append(self.run_text_fixture(path))
 
+        return results
+
+    def run_holdout(self, fixtures_dir: Path) -> list[BenchmarkResult]:
+        """Adversarial / holdout fixtures (adv_*) — never used to tune heuristics."""
+        results: list[BenchmarkResult] = []
+        for path in sorted(fixtures_dir.glob("adv_*.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if "items" not in data and "content" not in data:
+                continue
+            results.append(self.run_fixture(path))
         return results
 
     def run_fixture(self, path: Path) -> BenchmarkResult:

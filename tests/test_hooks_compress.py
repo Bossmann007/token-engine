@@ -56,7 +56,21 @@ def test_mcp_hook_skips_invalid_json():
     assert json.loads(proc.stdout.strip() or "{}") == {}
 
 
-def test_shell_hook_advisory_only_when_large():
+def test_mcp_hook_skips_error_payloads():
+    npm = ("npm warn deprecated foo@1.0.0: x\n" * 40) + "added 200 packages\naudited 200 packages\n"
+    envelope = {"content": [{"type": "text", "text": npm}], "isError": True}
+    out = _run(MCP_HOOK, {"tool_output": json.dumps(envelope)})
+    assert out == {}
+
+
+def test_mcp_hook_preserves_is_error():
+    # When not skipped (isError false), flag stays false after rewrite
+    npm = ("npm warn deprecated foo@1.0.0: x\n" * 40) + "added 200 packages\naudited 200 packages\n"
+    envelope = {"content": [{"type": "text", "text": npm}], "isError": False}
+    out = _run(MCP_HOOK, {"tool_output": json.dumps(envelope)})
+    assert "updated_mcp_tool_output" in out
+    assert out["updated_mcp_tool_output"]["isError"] is False
+
     big = "x" * 2500
     out = _run(SHELL_HOOK, {"tool_name": "Shell", "tool_output": big})
     assert "additional_context" in out

@@ -78,13 +78,16 @@ def _compress_docker(text: str, aggressiveness: float) -> CompressResult:
     ]
     summary = [l for l in lines if re.search(r"Successfully (built|tagged|pushed)|exited with code", l, re.I)]
 
-    max_steps = max(3, int(8 * (1 - aggressiveness)))
+    max_steps = max(0, int(4 * (1 - aggressiveness)))
     parts: list[str] = []
     if steps:
-        parts.append(f"=== DOCKER STEPS ({len(steps)} total, last {min(max_steps, len(steps))}) ===")
-        parts.extend(l.strip() for l in steps[-max_steps:])
+        if max_steps <= 0:
+            parts.append(f"docker: {len(steps)} steps")
+        else:
+            parts.append(f"docker: {len(steps)} steps, last {min(max_steps, len(steps))}")
+            parts.extend(l.strip() for l in steps[-max_steps:])
     if errors:
-        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.append(f"ERR ({len(errors)}):")
         parts.extend(l.strip() for l in errors[:10])
     if summary:
         parts.extend(l.strip() for l in summary[:5])
@@ -99,18 +102,21 @@ def _compress_cargo(text: str, aggressiveness: float) -> CompressResult:
     compiling = [l for l in lines if l.strip().startswith("Compiling ")]
     finished = [l for l in lines if "Finished" in l]
 
-    max_crates = max(3, int(8 * (1 - aggressiveness)))
+    max_crates = max(0, int(3 * (1 - aggressiveness)))
     parts: list[str] = []
     if finished:
         parts.extend(l.strip() for l in finished[:3])
     if errors:
-        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.append(f"ERR ({len(errors)}):")
         parts.extend(l.strip() for l in errors[:15])
     elif compiling:
-        parts.append(f"=== COMPILED ({len(compiling)} crates, showing last {max_crates}) ===")
-        parts.extend(l.strip() for l in compiling[-max_crates:])
+        if max_crates <= 0:
+            parts.append(f"cargo: {len(compiling)} crates")
+        else:
+            parts.append(f"cargo: {len(compiling)} crates, last {max_crates}")
+            parts.extend(l.strip() for l in compiling[-max_crates:])
     if warnings and aggressiveness < 0.7:
-        parts.append(f"=== WARNINGS ({len(warnings)}) ===")
+        parts.append(f"WARN ({len(warnings)}):")
         parts.extend(l.strip() for l in warnings[:5])
 
     return _finish(text, "\n".join(parts), "cargo")
@@ -120,7 +126,7 @@ def _compress_kubectl(text: str, aggressiveness: float) -> CompressResult:
     lines = [l.rstrip() for l in text.splitlines() if l.strip()]
     header = lines[0] if lines and re.search(r"NAME\s+READY|NAMESPACE", lines[0]) else None
     data_lines = lines[1:] if header else lines
-    max_rows = max(5, int(20 * (1 - aggressiveness)))
+    max_rows = max(1, int(20 * (1 - aggressiveness)))
 
     not_ready = [l for l in data_lines if re.search(r"\b0/\d+\b|Error|CrashLoop|Pending|Failed", l)]
     parts: list[str] = []
@@ -143,7 +149,7 @@ def _compress_pip(text: str, aggressiveness: float) -> CompressResult:
     satisfied = [l for l in lines if l.startswith("Requirement already satisfied")]
     collecting = [l for l in lines if l.startswith("Collecting ")]
 
-    max_collect = max(3, int(10 * (1 - aggressiveness)))
+    max_collect = max(1, int(10 * (1 - aggressiveness)))
     parts: list[str] = []
     if installed:
         parts.extend(installed[:3])
@@ -184,7 +190,7 @@ def _compress_go(text: str, aggressiveness: float) -> CompressResult:
     ok_lines = [l for l in lines if l.startswith("ok  ") or l == "PASS"]
     run_lines = [l for l in lines if l.startswith("=== RUN ")]
 
-    max_ok = max(3, int(8 * (1 - aggressiveness)))
+    max_ok = max(1, int(8 * (1 - aggressiveness)))
     parts: list[str] = []
     if ok_lines:
         parts.append(f"=== PASS ({len(ok_lines)}) ===")
@@ -228,8 +234,8 @@ def _compress_curl(text: str, aggressiveness: float) -> CompressResult:
     headers = [l for l in lines if l.startswith("HTTP/") or l.startswith("< ") or l.startswith("> ")]
     body = [l for l in lines if l not in headers and l.strip()]
 
-    max_headers = max(5, int(12 * (1 - aggressiveness)))
-    max_body = max(3, int(15 * (1 - aggressiveness)))
+    max_headers = max(1, int(12 * (1 - aggressiveness)))
+    max_body = max(1, int(15 * (1 - aggressiveness)))
     parts = headers[:max_headers]
     if body:
         parts.append(f"=== BODY ({len(body)} lines) ===")
@@ -264,7 +270,7 @@ def _compress_webpack(text: str, aggressiveness: float) -> CompressResult:
     assets = [l for l in lines if re.search(r"asset \S+ \d+ (?:KiB|MiB|bytes)", l, re.I)]
     summary = [l for l in lines if re.search(r"webpack compiled|compiled (?:with|successfully)", l, re.I)]
 
-    max_assets = max(3, int(8 * (1 - aggressiveness)))
+    max_assets = max(1, int(8 * (1 - aggressiveness)))
     parts: list[str] = summary[:3]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -285,7 +291,7 @@ def _compress_gradle(text: str, aggressiveness: float) -> CompressResult:
     summary = [l for l in lines if re.search(r"BUILD SUCCESSFUL|BUILD FAILED|\d+ actionable task", l, re.I)]
     tasks = [l for l in lines if l.strip().startswith("> Task ")]
 
-    max_tasks = max(4, int(12 * (1 - aggressiveness)))
+    max_tasks = max(1, int(12 * (1 - aggressiveness)))
     parts: list[str] = summary[:3]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -307,7 +313,7 @@ def _compress_journalctl(text: str, aggressiveness: float) -> CompressResult:
     markers = [l for l in lines if l.startswith("--")]
     entries = [l for l in lines if l not in markers and l not in errors]
 
-    max_entries = max(5, int(25 * (1 - aggressiveness)))
+    max_entries = max(1, int(25 * (1 - aggressiveness)))
     parts: list[str] = markers[:2]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -329,7 +335,7 @@ def _compress_terraform(text: str, aggressiveness: float) -> CompressResult:
         if re.search(r"^\s*[~+-]\s+\S+|^  # module\.|^  \+ resource|^  ~ resource|^  - resource", l)
     ]
 
-    max_changes = max(5, int(20 * (1 - aggressiveness)))
+    max_changes = max(1, int(20 * (1 - aggressiveness)))
     parts: list[str] = plan_summary[:5]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -353,7 +359,7 @@ def _compress_npm(text: str, aggressiveness: float) -> CompressResult:
     ]
     installing = [l for l in lines if re.search(r"^npm http fetch|^reify:|^idealTree:", l)]
 
-    max_lines = max(3, int(10 * (1 - aggressiveness)))
+    max_lines = max(1, int(10 * (1 - aggressiveness)))
     parts: list[str] = summary[:3]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -376,20 +382,44 @@ def _compress_jest(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
     passes = [l for l in lines if l.startswith("PASS ")]
 
-    # Small output: drop PASS lines and collapse duplicate summaries
+    # Small output: drop PASS lines, stack frames, collapse duplicate summaries
     if len(lines) <= 15 and passes:
-        kept = [l for l in lines if not l.startswith("PASS ")]
+        kept = [
+            l
+            for l in lines
+            if not l.startswith("PASS ")
+            and "at Object." not in l
+            and not re.match(r"^\s+at\s+", l)
+        ]
         summaries = [l for l in kept if re.search(r"Test Suites:|^Tests:", l)]
         body = [l for l in kept if l not in summaries]
+        # Collapse Expected/Received onto one line; drop ● chrome when FAIL present
+        compact_body: list[str] = []
+        expected = received = None
+        for l in body:
+            s = l.strip()
+            if s.startswith("●"):
+                continue
+            if s.startswith("Expected:"):
+                expected = s.split(":", 1)[1].strip()
+                continue
+            if s.startswith("Received:"):
+                received = s.split(":", 1)[1].strip()
+                continue
+            compact_body.append(l)
+        if expected is not None or received is not None:
+            compact_body.append(f"Expected {expected} got {received}")
         if len(summaries) > 1:
-            parts = body + ["; ".join(s.strip() for s in summaries)]
+            # Keep one summary line only
+            parts = compact_body + [summaries[0].strip()]
         else:
-            parts = kept
+            parts = compact_body + [s.strip() for s in summaries[:1]]
         return _finish(text, "\n".join(parts), "jest")
 
     summary = [l for l in lines if re.search(r"Test Suites:|^Tests:|^Snapshots:|^Time:", l)]
     fails = [l for l in lines if l.startswith("FAIL ") or l.strip().startswith("●")]
-    errors = [l for l in lines if re.search(r"Expected|Received|at Object\.|^\s+at ", l)]
+    # Keep Expected/Received; drop stack frames (path already on FAIL line)
+    errors = [l for l in lines if re.search(r"Expected|Received", l)]
     passes = [l for l in lines if l.startswith("PASS ")]
 
     max_pass = max(1, int(3 * (1 - aggressiveness)))
@@ -415,7 +445,7 @@ def _compress_pnpm(text: str, aggressiveness: float) -> CompressResult:
     summary = [l for l in lines if re.search(r"Done in [\d.]+s|^Packages:", l)]
     progress = [l for l in lines if l.startswith("Progress:") and l not in summary]
 
-    max_lines = max(3, int(8 * (1 - aggressiveness)))
+    max_lines = max(1, int(8 * (1 - aggressiveness)))
     parts: list[str] = summary[:3]
     if errors:
         parts.append(f"=== ERRORS ({len(errors)}) ===")
@@ -439,14 +469,19 @@ def _compress_vite(text: str, aggressiveness: float) -> CompressResult:
     assets = [l for l in lines if re.search(r"dist/.*\.(js|css|html)", l, re.I)]
     warnings = [l for l in lines if "warning" in l.lower()]
 
-    max_assets = max(3, int(8 * (1 - aggressiveness)))
-    parts: list[str] = summary[:3]
+    max_assets = max(0, int(3 * (1 - aggressiveness)))
+    parts: list[str] = summary[:2]
     if errors:
-        parts.append(f"=== ERRORS ({len(errors)}) ===")
+        parts.append(f"ERR ({len(errors)}):")
         parts.extend(l.strip() for l in errors[:12])
     if assets:
-        parts.append(f"=== OUTPUT ({len(assets)}, last {max_assets}) ===")
-        parts.extend(l.strip() for l in assets[-max_assets:])
+        if max_assets <= 0:
+            parts.append(f"vite: {len(assets)} assets")
+        else:
+            parts.append(f"vite: {len(assets)} assets, last {max_assets}")
+            parts.extend(l.strip() for l in assets[-max_assets:])
+            if len(assets) > max_assets:
+                parts.append(f"... {len(assets) - max_assets} more assets")
     if warnings and aggressiveness < 0.7:
         parts.append(f"warnings: {len(warnings)}")
         parts.extend(l.strip() for l in warnings[:5])
@@ -458,7 +493,7 @@ def _compress_tsc(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
     errors = [l for l in lines if re.search(r"error TS\d+|Found \d+ error", l)]
     details = [l for l in lines if re.search(r"\.tsx?\(\d+,\d+\):", l)]
-    max_lines = max(5, int(15 * (1 - aggressiveness)))
+    max_lines = max(1, int(15 * (1 - aggressiveness)))
     parts = errors[:3]
     if details:
         parts.append(f"=== TS ERRORS ({len(details)}) ===")
@@ -469,7 +504,7 @@ def _compress_tsc(text: str, aggressiveness: float) -> CompressResult:
 def _compress_eslint(text: str, aggressiveness: float) -> CompressResult:
     lines = text.splitlines()
     errors = [l for l in lines if re.search(r"error|✖ \d+ problem", l, re.I)]
-    max_lines = max(5, int(12 * (1 - aggressiveness)))
+    max_lines = max(1, int(12 * (1 - aggressiveness)))
     parts = [l.strip() for l in errors[:max_lines]]
     if len(errors) > max_lines:
         parts.append(f"... {len(errors) - max_lines} more eslint issues")
@@ -491,19 +526,21 @@ def _compress_traceback(text: str, aggressiveness: float) -> CompressResult:
     for line in lines:
         if line.startswith("Traceback"):
             in_tb = True
-            keep.append(line)
+            if aggressiveness < 0.6:
+                keep.append(line)
             continue
         if in_tb:
             if line.startswith("  ") or line.startswith("File ") or line.strip().startswith("^"):
-                keep.append(line)
+                if aggressiveness < 0.6:
+                    keep.append(line)
             elif line.strip() and not line.startswith(" "):
                 keep.append(line)
                 in_tb = False
-            else:
+            elif aggressiveness < 0.6:
                 keep.append(line)
         elif re.search(r"Error:|Exception:|SyntaxError:", line):
             keep.append(line)
-    max_lines = max(8, int(25 * (1 - aggressiveness * 0.5)))
+    max_lines = max(2, int(25 * (1 - aggressiveness * 0.5)))
     out = "\n".join(keep[:max_lines])
     return _finish(text, out, "traceback")
 
