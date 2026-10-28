@@ -49,11 +49,7 @@ source .venv/bin/activate
 pip install -e ".[cursor,dev]"
 ```
 
-Optional symlink used by this machine’s Cursor env:
-
-```bash
-ln -sfn "$PWD" ~/token-engine
-```
+Clone it directly into `~/Projects/token-engine` (no symlink); the kit and the Cursor env expect that path.
 
 ### Windows
 

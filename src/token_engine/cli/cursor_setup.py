@@ -33,7 +33,7 @@ def run_cursor_setup(*, global_setup: bool = False) -> None:
         "Open this project in Cursor",
         "Settings → MCP → enable token-engine + codebase-memory",
         "Rules: ponytail, caveman, token-engine, cbm-first",
-        "Global env: see ~/cursor-kit (Ultimate Cursor Environment)",
+        "Global env: see ~/Projects/cursor-kit (Ultimate Cursor Environment)",
         "API: token-engine serve → POST /optimize-context",
     ]
     for i, step in enumerate(steps, 1):

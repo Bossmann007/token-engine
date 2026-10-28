@@ -14,8 +14,7 @@ from pathlib import Path
 _MARKER_SKIP = "rtk already"
 
 _TE_SRC_CANDIDATES = (
-    Path.home() / ".cursor/repos/token-engine/src",
-    Path.home() / "token-engine/src",
+    Path.home() / "Projects/token-engine/src",
     Path(__file__).resolve().parents[1] / "src",  # repo checkout layout
 )
 

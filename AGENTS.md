@@ -14,9 +14,9 @@
 
 ## Learned Workspace Facts
 
-- token-engine lives at `~/token-engine` → `~/.cursor/repos/token-engine` ([GitHub](https://github.com/Bossmann007/token-engine))
+- token-engine lives at `~/Projects/token-engine`, a git checkout with no symlink ([GitHub](https://github.com/Bossmann007/token-engine))
 - Global MCP: context7, token-engine, codebase-memory, notion (OAuth)
-- cursor-kit at `~/cursor-kit` → `~/.cursor/repos/cursor-kit` ([GitHub](https://github.com/Bossmann007/cursor-kit))
+- cursor-kit at `~/Projects/cursor-kit` → `~/Projects/cursor-kit` ([GitHub](https://github.com/Bossmann007/cursor-kit))
 - Skills: mattpocock/skills + find-skills in `~/.cursor/skills/`; book rules in `~/.cursor/rules/books/`
 - Pair with `/setup-project` from cursor-kit for per-repo bootstrap
 - Issue tracker: GitHub Issues via `gh`; domain layout single-context (`docs/agents/`)

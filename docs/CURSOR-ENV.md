@@ -1,13 +1,13 @@
 # CURSOR-ENV — My Ultimate Cursor Environment
 
-Phases 1–29 implemented. Full docs: [cursor-kit](https://github.com/Bossmann007/cursor-kit) (`~/cursor-kit`).
+Phases 1–29 implemented. Full docs: [cursor-kit](https://github.com/Bossmann007/cursor-kit) (`~/Projects/cursor-kit`).
 
 ## Stack
 
 | Component | Path |
 |-----------|------|
 | Global config | `~/.cursor/` |
-| Template kit | `~/cursor-kit/` ([repo](https://github.com/Bossmann007/cursor-kit)) |
+| Template kit | `~/Projects/cursor-kit/` ([repo](https://github.com/Bossmann007/cursor-kit)) |
 | Compression | this repo — token-engine MCP + API |
 | Memory | AGENTS.md + Continual Learning plugin |
 | Task state | `.cursor/state/checkpoint.json` |
@@ -38,8 +38,8 @@ afterFileEdit → format + track files
 stop → merge session → checkpoint  
 
 ```bash
-~/cursor-kit/sync-hooks.sh    # macOS / Linux
-# Windows: ~\cursor-kit\sync-hooks.ps1
+~/Projects/cursor-kit/sync-hooks.sh    # macOS / Linux
+# Windows: ~\Projects\cursor-kit\sync-hooks.ps1
 ```
 
 ## New project
@@ -49,14 +49,14 @@ stop → merge session → checkpoint
 # In Cursor: /setup-project
 
 # Manual
-~/cursor-kit/install.sh                 # macOS / Linux
-# Windows: ~\cursor-kit\install.ps1
+~/Projects/cursor-kit/install.sh                 # macOS / Linux
+# Windows: ~\Projects\cursor-kit\install.ps1
 ```
 
 ## Tests
 
 ```bash
-python -m unittest discover -s ~/cursor-kit/tests
+python -m unittest discover -s ~/Projects/cursor-kit/tests
 token-engine benchmark --check-baseline
 pytest
 ```
