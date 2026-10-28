@@ -39,7 +39,7 @@ stop → merge session → checkpoint
 
 ```bash
 ~/Projects/cursor-kit/sync-hooks.sh    # macOS / Linux
-# Windows: ~\cursor-kit\sync-hooks.ps1
+# Windows: ~\Projects\cursor-kit\sync-hooks.ps1
 ```
 
 ## New project
@@ -50,7 +50,7 @@ stop → merge session → checkpoint
 
 # Manual
 ~/Projects/cursor-kit/install.sh                 # macOS / Linux
-# Windows: ~\cursor-kit\install.ps1
+# Windows: ~\Projects\cursor-kit\install.ps1
 ```
 
 ## Tests
