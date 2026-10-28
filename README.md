@@ -52,7 +52,7 @@ pip install -e ".[cursor,dev]"
 Optional symlink used by this machine’s Cursor env:
 
 ```bash
-ln -sfn "$PWD" ~/token-engine
+ln -sfn "$PWD" ~/Projects/token-engine
 ```
 
 ### Windows
