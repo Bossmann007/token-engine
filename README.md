@@ -110,7 +110,7 @@ Fail-closed: never replaces content unless provably smaller **and** quality chec
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
 
 <!-- ENZO-PORTFOLIO-BRAND-FOOTER -->
 <p align="center">
