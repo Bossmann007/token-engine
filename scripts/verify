@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Full check suite. Exit 0 only if every step passes.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+PY="${PY:-.venv/bin/python}"
+TE="${TE:-.venv/bin/token-engine}"
+
+step() { echo "== $1"; }
+
+step "compileall (syntax; no linter configured)"
+"$PY" -m compileall -q src tests
+
+step "pytest"
+"$PY" -m pytest -q
+
+step "benchmark --check-baseline"
+"$TE" benchmark --check-baseline | tail -n 3
+
+if command -v gitleaks >/dev/null 2>&1; then
+  step "gitleaks (git history, redacted)"
+  gitleaks git --no-banner --redact .
+else
+  echo "== gitleaks: not installed, skipped"
+fi
+
+echo "verify: OK"

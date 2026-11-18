@@ -53,7 +53,9 @@ def measure_corpus(
     fixtures_dir: Path,
     *,
     quality: QualityLevel = QualityLevel.BALANCED,
+    holdout: bool | None = None,
 ) -> NetMetrics:
+    """holdout=None: all fixtures; False: main only; True: adv_* holdout only."""
     tokenizer = create_tokenizer("o200k_base")
     cfg = EngineConfig(quality_level=quality)
     engine = TokenEngine(cfg)
@@ -66,7 +68,12 @@ def measure_corpus(
     latency = 0.0
     n = 0
 
+    def _selected(path: Path) -> bool:
+        return holdout is None or path.stem.startswith("adv_") == holdout
+
     for path in sorted(fixtures_dir.glob("*.json")):
+        if not _selected(path):
+            continue
         data = __import__("json").loads(path.read_text(encoding="utf-8"))
         if "items" not in data and "content" not in data:
             continue
@@ -91,6 +98,8 @@ def measure_corpus(
         n += 1
 
     for path in sorted(fixtures_dir.glob("*.txt")):
+        if not _selected(path):
+            continue
         start = time.perf_counter()
         result = engine.optimize(path.read_text(encoding="utf-8"))
         latency += (time.perf_counter() - start) * 1000

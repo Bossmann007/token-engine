@@ -68,14 +68,14 @@ token-engine benchmark --check-baseline
 token-engine serve   # REST on :8741
 ```
 
-Main-corpus benchmark (balanced, 2026-09-17) — see [BENCHMARKS.md](docs/BENCHMARKS.md):
+Main-corpus benchmark (balanced; `token-engine benchmark --net`, 2026-11-07) — see [BENCHMARKS.md](docs/BENCHMARKS.md):
 
 ```
 Fixture                 Original  Optimized   Ratio
 ────────────────────────────────────────────────────
 TOTAL                      6,293        510   91.9%
-Net (minus omit/CCR overhead)                 ~90.0%
-Holdout adv_* (stress only)                   ~61.1%
+Main net (minus omit/CCR overhead)            91.4%
+Holdout adv_* gross / net (stress only)  61.1% / 59.7%
 ```
 
 Fixture % ≠ Cursor bill. Real savings = RTK-before-Shell + compress before reasoning + CBM instead of fat Reads.
