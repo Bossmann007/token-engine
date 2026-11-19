@@ -293,8 +293,9 @@ def serve_cmd(host: str, port: int) -> None:
 @click.option("--quality", type=click.Choice(["maximum", "balanced", "economy"]), default="balanced")
 @click.option("--check-baseline", is_flag=True, help="Fail if ratios regress below benchmarks/baseline.json")
 @click.option("--baseline", type=click.Path(exists=True), default=None, help="Baseline thresholds JSON")
+@click.option("--net", "show_net", is_flag=True, help="Also print net ratio (omit/CCR overhead) for main and adv_* holdout")
 def benchmark_cmd(
-    fixtures: str | None, quality: str, check_baseline: bool, baseline: str | None
+    fixtures: str | None, quality: str, check_baseline: bool, baseline: str | None, show_net: bool
 ) -> None:
     """Run compression benchmarks."""
     from token_engine.benchmark.runner import BenchmarkRunner
@@ -330,6 +331,19 @@ def benchmark_cmd(
                 sg = (session_ref - sr) * 100
                 click.secho(f"  {'Session gap':<16} ", fg="bright_black", nl=False)
                 click.secho(f"{sg:+.1f} pp", fg="green" if sg <= 0 else "yellow", bold=True)
+
+    if show_net:
+        from token_engine.benchmark.net_metrics import measure_corpus
+
+        console.section("Net (omit/CCR overhead subtracted)")
+        for label, holdout in (("Main", False), ("Holdout", True)):
+            m = measure_corpus(fixtures_dir, quality=QualityLevel(quality), holdout=holdout)
+            click.echo(
+                f"  {label}: {m.fixture_count} fixtures, {m.original_tokens:,} -> "
+                f"{m.compressed_tokens:,} tok, overhead {m.overhead_tokens} tok"
+            )
+            console.stat_ratio(f"{label} gross", m.gross_ratio, width=16)
+            console.stat_ratio(f"{label} net", m.net_ratio, width=16)
 
     if check_baseline:
         failures = runner.check_baseline(results, baseline_path)

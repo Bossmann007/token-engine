@@ -117,8 +117,8 @@ token-engine optimize benchmarks/fixtures/app_log.txt
 | MCP `caveman_compress` | live smoke OK (log ≈75% on sample) |
 | codebase-memory | indexed; use `search_graph` not full Read |
 | Main corpus gross | **91.9%** (floors OK; practical plateau under quality invariants) |
-| Holdout `adv_*` | ~61.1% (stress, not marketing) |
-| Net (`measure_corpus`, minus omit/CCR overhead) | **~90.0%** |
+| Holdout `adv_*` | 61.1% gross / 59.7% net (stress, not marketing) |
+| Main net (`benchmark --net`, minus omit/CCR overhead) | **91.4%** |
 | Keep **OFF** | `enable_jev_router`, `enable_sandbox_execute` |
 
 **Trust:** 90% is reproducible on the main fixture corpus. It is **not** Cursor bill reduction. Real savings = RTK before Shell + CBM instead of fat Reads + compress before reasoning.

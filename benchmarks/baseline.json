@@ -1,33 +1,34 @@
 {
-  "minimum_total_ratio": 0.58,
+  "minimum_total_ratio": 0.86,
   "minimum_quality_score": 0.95,
   "reference_total_ratio": 0.82,
-  "reference_session_ratio": 0.80,
+  "reference_session_ratio": 0.8,
   "categories": {
-    "session": 0.39,
-    "tool_output": 0.55,
-    "json": 0.60,
-    "log": 0.75,
-    "blob": 0.50
+    "session": 0.83,
+    "tool_output": 0.84,
+    "json": 0.6,
+    "log": 0.91,
+    "blob": 0.91
   },
   "fixtures": {
-    "agent_context_session": 0.47,
-    "cross_turn_reread": 0.50,
-    "hybrid_knapsack_session": 0.42,
-    "large_agent_session": 0.24,
-    "large_json_api_response": 0.58,
+    "agent_context_session": 0.86,
+    "cross_turn_reread": 0.5,
+    "hybrid_knapsack_session": 0.87,
+    "large_agent_session": 0.85,
+    "large_json_api_response": 0.9,
     "metrics_timeseries": 0.75,
-    "pytest_failures": 0.50,
-    "read_delta_session": 0.45,
-    "session_reread_chain": 0.48,
-    "session_unrelated_reads": 0.04,
-    "app_log": 0.75,
-    "cargo_build": 0.55,
-    "docker_build": 0.50,
-    "git_status": 0.45,
+    "pytest_failures": 0.88,
+    "read_delta_session": 0.77,
+    "session_reread_chain": 0.8,
+    "session_unrelated_reads": 0.74,
+    "app_log": 0.91,
+    "cargo_build": 0.85,
+    "docker_build": 0.86,
+    "git_status": 0.76,
     "jest_failures": 0.15,
-    "npm_install": 0.65,
-    "pnpm_install": 0.70,
-    "vite_build": 0.55
-  }
+    "npm_install": 0.84,
+    "pnpm_install": 0.7,
+    "vite_build": 0.9
+  },
+  "floor_policy": "floor = current ratio - 5pp, rounded down; holdout-split fixtures (corpus_split.json) keep old floors"
 }

@@ -30,15 +30,18 @@ TOTAL                               6293        510  91.9%
 ```
 
 - Gross (main): **91.9%**
-- Net (`measure_corpus`, subtracts omit/CCR overhead): **~90.0%** (`floors_ok`)
-- Holdout `adv_*` total: **~61.1%** (stress only; not used to tune)
+- Net (main, subtracts omit/CCR overhead): **91.4%** (6,293 → 510 tok, overhead 32 tok)
+- Holdout `adv_*` (3 fixtures, 283 → 110 tok): gross **61.1%**, net **59.7%** (stress only; not used to tune)
+- Earlier docs quoted ~90.0% net: that was main + `adv_*` combined (21 fixtures), not main alone.
+
+Floors in `benchmarks/baseline.json`: current ratio minus 5 pp, rounded down (total floor 86%). Fixtures in the `holdout` list of `corpus_split.json` keep their older floors so holdout peaks never raise CI floors.
 
 **Trust note:** fixture % ≠ Cursor bill. Real live savings = RTK-before-Shell + compress hooks/MCP + codebase-memory instead of fat Reads. Keep Jev/sandbox OFF on Cursor.
 
 Reproduce:
 
 ```bash
-token-engine benchmark --check-baseline
+token-engine benchmark --check-baseline --net
 pytest tests/test_benchmark_baseline.py tests/test_net_metrics.py
 ```
 
